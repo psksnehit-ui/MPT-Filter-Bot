@@ -6,8 +6,6 @@
   <title>MPT Player</title>
   <link rel="stylesheet" href="https://cdn.plyr.io/3.6.9/plyr.css" />
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-
-  <!-- Google Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500&family=Poppins&display=swap" rel="stylesheet">
 
   <style>
@@ -83,7 +81,9 @@
       border-radius: 30px;
       padding: 10px 25px;
       margin: 8px;
-      display: inline-block;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
       text-decoration: none;
     }
 
@@ -93,23 +93,18 @@
       box-shadow: 0 0 15px #0ff, 0 0 30px #0ff;
     }
 
-    /* Player styling */
-    .plyr--video .plyr__controls {
-      background: rgba(0, 0, 0, 0.6) !important;
-      border-radius: 10px;
-      border: 1px solid rgba(0, 255, 255, 0.5);
-      box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+    .plyr--video {
+      max-width: 100%;
+      border-radius: 12px;
+      overflow: hidden;
     }
 
-    .plyr__control {
-      color: #0ff !important;
-      transition: 0.3s;
-    }
-
-    .plyr__control:hover {
-      color: #000 !important;
-      background: #0ff !important;
-      box-shadow: 0 0 15px #0ff;
+    .video-title {
+      font-size: 1.2rem;
+      color: #0ff;
+      text-align: center;
+      margin-bottom: 12px;
+      font-weight: bold;
     }
 
     footer {
@@ -121,106 +116,166 @@
       font-size: 14px;
       margin-top: auto;
     }
+
+    .icon {
+      width: 20px;
+      height: 20px;
+    }
+	
   </style>
 </head>
 <body>
 
   <!-- Header -->
-  <header>
-    <h1 class="neon-text text-2xl">MPT Player</h1>
-  </header>
+	<header class="flex items-center justify-between px-6 py-3 bg-[rgba(20,20,40,0.8)] border-b-2 border-cyan-400 shadow-md">
+		<a href="https://t.me/your_channel" target="_blank" class="flex items-center gap-3">
+		<!-- Logo -->
+		<img src="https://img.icons8.com/color/48/0ff/telegram-app.png" alt="Logo" class="h-10 w-10">
+		<!-- Title -->
+		<h1 class="neon-text text-2xl cursor-pointer">MPT Player</h1>
+		</a>
+	</header>
 
   <!-- Video Player -->
-  <main class="container mx-auto mt-10 px-4">
-    <div class="glass-card max-w-4xl mx-auto">
-      <video id="player" playsinline controls>
-        <source src="{{file_url}}" type="video/mp4" />
-      </video>
+  <main class="container mx-auto mt-5 px-4">
+    <div class="glass-card max-w-6xl mx-auto">
+      
+      <!-- Video Title -->
+      <div class="video-title">{{file_name}}</div>
 
-      <!-- Download Now Button -->
+      <!-- Video Player -->
+      <video id="player" playsinline controls style="width:100%; height:540px;">
+        <source src="{{file_url}}" type="video/mp4" />
+      <!-- Subtitles Track -->
+		<track kind="subtitles" label="English" srclang="en" src="your-subtitles.vtt" default>
+
+	  </video>
+
+      
+  </main>
+		<!-- Download Now Button -->
       <div class="text-center mt-6">
         <a onclick="lazyDownload()" class="neon-btn">Download Now</a>
       </div>
+  
+  
+  
+  <!-- External Players Centered -->
+      <div class="text-center mt-6">
+        <h2 class="text-xl mb-4 neon-text">Play with External Player</h2>
+        <div class="grid grid-cols-2 gap-4 max-w-md mx-auto">
+          <button onclick="vlc_player()" class="neon-btn">
+            <img src="https://img.icons8.com/color/48/vlc.png" class="icon"> VLC
+          </button>
+          <button onclick="mx_player()" class="neon-btn">
+            <img src="https://i.ibb.co/jvfNZwyP/icons8-pot-player-64.png" class="icon"> MX
+          </button>
+          <button onclick="playit_player()" class="neon-btn">
+            <img src="https://img.icons8.com/ios/50/play.png" class="icon"> Playit
+          </button>
+          <button onclick="km_player()" class="neon-btn">
+            <img src="https://img.icons8.com/color/48/k.png" class="icon"> KM
+          </button>
+          <button onclick="s_player()" class="neon-btn">
+            <img src="https://img.icons8.com/ios-filled/50/s.png" class="icon"> S Player
+          </button>
+          <button onclick="hd_player()" class="neon-btn">
+            <img src="https://img.icons8.com/ios/50/4k.png" class="icon"> HD 4K
+          </button>
+        </div>
+      </div>
     </div>
-  </main>
+	
+	<!-- Telegram Button Below External Players -->
+	<div class="text-center mt-6">
+	  <button id="telegramBtn" class="neon-btn">
+		<img src="https://img.icons8.com/ios-filled/24/0ff/telegram-app.png" class="icon"> Telegram Channels ▼
+	  </button>
 
-  <!-- External Players -->
-  <section class="mt-10">
-    <h2 class="text-center text-xl mb-6 neon-text">Play with...</h2>
-    <div class="grid grid-cols-2 gap-4 px-6 max-w-2xl mx-auto">
-      <div onclick="vlc_player()" class="neon-btn rounded-xl px-4 py-3 cursor-pointer text-center">VLC Player</div>
-      <div onclick="mx_player()" class="neon-btn rounded-xl px-4 py-3 cursor-pointer text-center">MX Player</div>
-      <div onclick="playit_player()" class="neon-btn rounded-xl px-4 py-3 cursor-pointer text-center">Play-it</div>
-      <div onclick="km_player()" class="neon-btn rounded-xl px-4 py-3 cursor-pointer text-center">KM Player</div>
-      <div onclick="s_player()" class="neon-btn rounded-xl px-4 py-3 cursor-pointer text-center">S Player</div>
-      <div onclick="hd_player()" class="neon-btn rounded-xl px-4 py-3 cursor-pointer text-center">HD Player (4K)</div>
-    </div>
-  </section>
+	  <div id="telegramDropdown" class="hidden mt-2 grid grid-cols-2 gap-2 max-w-sm mx-auto">
+		<a href="https://t.me/channel1" target="_blank" class="neon-btn">Channel 1</a>
+		<a href="https://t.me/channel2" target="_blank" class="neon-btn">Channel 2</a>
+		<a href="https://t.me/channel3" target="_blank" class="neon-btn">Channel 3</a>
+		<a href="https://t.me/channel4" target="_blank" class="neon-btn">Channel 4</a>
+		<a href="https://t.me/channel5" target="_blank" class="neon-btn">Channel 5</a>
+		<a href="https://t.me/channel6" target="_blank" class="neon-btn">Channel 6</a>
+	  </div>
+	</div>
 
+	<script>
+	const telegramBtn = document.getElementById('telegramBtn');
+	const telegramDropdown = document.getElementById('telegramDropdown');
+
+	telegramBtn.addEventListener('click', () => {
+	  telegramDropdown.classList.toggle('hidden');
+	});
+	</script>
+	
+<!-- Action Buttons: Share, Like, Report, Watch Later -->
+<div class="flex justify-center items-center gap-4 mt-6 flex-wrap">
+  <!-- Share Button -->
+  <button onclick="copyLink()" class="neon-btn">
+    <img src="https://img.icons8.com/color/48/share--v1.png" class="icon"> Share
+  </button>
+
+  <!-- Like Button -->
+  <button id="likeBtn" class="neon-btn">
+    <img src="https://img.icons8.com/color/48/facebook-like--v1.png" class="icon"> Like
+  </button>
+
+  <!-- Report Button -->
+  <a href="feedback.html" class="neon-btn">
+    <img src="https://img.icons8.com/color/48/feedback.png" class="icon"> Report
+  </a>
+
+  <!-- Watch Later Button -->
+  <button class="neon-btn">
+    <img src="https://img.icons8.com/color/48/clock--v1.png" class="icon"> Watch Later
+  </button>
+</div>
+
+<script>
+// Copy link for Share button
+function copyLink() {
+  navigator.clipboard.writeText(window.location.href);
+  alert('Link copied to clipboard!');
+}
+
+// Like button
+const likeBtn = document.getElementById('likeBtn');
+likeBtn.addEventListener('click', () => {
+  alert('You liked this video!');
+});
+</script>
+
+
+
+	
   <!-- Footer -->
   <footer>
     © 2025 MPT Player | All Rights Reserved
   </footer>
 
+  <!-- Scripts -->
   <script src="https://cdn.plyr.io/3.6.9/plyr.js"></script>
   <script>
     const player = new Plyr('#player', {
       controls: [
         'play-large', 'rewind', 'play', 'fast-forward',
         'progress', 'current-time', 'duration', 'mute',
-        'volume', 'captions', 'settings', 'pip', 'airplay',
-        'download', 'fullscreen'
+        'volume', 'captions', 'settings', 'pip', 'airplay', 'fullscreen'
       ]
     });
 
-    </script>
-	<script>
-        const videolink = window.location.href;
-        const  lazyLink = videolink.replace("/watch/", "/");
+    const videolink = window.location.href;
+    const lazyLink = videolink.replace("/watch/", "/");
 
-        function vlc_player() {
-            const openLazyLink = lazyLink;
-            const openVlc = `vlc://${openLazyLink}`;
-            window.location.href = openVlc;
-        }
-	    
-	function mx_player() {
-            const openLazyLink = lazyLink;
-            const openMx = `intent:${openLazyLink}#Intent;package=com.mxtech.videoplayer.ad;end`;
-            window.location.href = openMx;
-        }
-        
-	function playit_player() {
-    	const openLazyLink = lazyLink;
-    	const openPlayit = `playit://playerv2/video?url=${openLazyLink}`;
-   	 window.location.href = openPlayit;
-	}
-	    
-	function s_player() {
-            const openLazyLink = lazyLink;
-            const openSplayer = `intent:${openLazyLink}#Intent;action=com.young.simple.player.playback_online;package=com.young.simple.player;end`;
-            window.location.href = openSplayer;
-        }
-	    
-	function km_player() {
-           const openLazyLink = lazyLink;
-           const openKmplayer = `intent:${openLazyLink}#Intent;package=com.kmplayer;end`;
-           window.location.href = openKmplayer;
-        }
-        
-	function hd_player() {
-           const openLazyLink = lazyLink;
-           const openHDplayer = `intent:${openLazyLink}#Intent;package=uplayer.video.player;end`;
-           window.location.href = openHDplayer;
-        }
-	    
-        function lazyDownload() {
-            const openLazyLink = lazyLink;
-            window.location.href = openLazyLink;
-        }
-
-    </script>
-
+    function vlc_player() { window.location.href = `vlc://${lazyLink}`; }
+    function mx_player() { window.location.href = `intent:${lazyLink}#Intent;package=com.mxtech.videoplayer.ad;end`; }
+    function playit_player() { window.location.href = `playit://playerv2/video?url=${lazyLink}`; }
+    function s_player() { window.location.href = `intent:${lazyLink}#Intent;action=com.young.simple.player.playback_online;package=com.young.simple.player;end`; }
+    function km_player() { window.location.href = `intent:${lazyLink}#Intent;package=com.kmplayer;end`; }
+    function hd_player() { window.location.href = `intent:${lazyLink}#Intent;package=uplayer.video.player;end`; }
+  </script>
 </body>
 </html>
-
