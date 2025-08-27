@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <link rel="shortcut icon" href="https://i.ibb.co/mrYwDLbX/mpt-logo.jpg" type="image/x-icon">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MPT Player</title>
   <link rel="stylesheet" href="https://cdn.plyr.io/3.6.9/plyr.css" />
@@ -17,7 +18,6 @@
       display: flex;
       flex-direction: column;
     }
-
     body::before {
       content: "";
       position: fixed;
@@ -30,13 +30,11 @@
       animation: gradientMove 15s ease infinite;
       z-index: -2;
     }
-
     @keyframes gradientMove {
       0% { background-position: 0% 50%; }
       50% { background-position: 100% 50%; }
       100% { background-position: 0% 50%; }
     }
-
     body::after {
       content: "";
       position: fixed;
@@ -48,21 +46,18 @@
       backdrop-filter: blur(5px);
       z-index: -1;
     }
-
     header {
       background: rgba(20, 20, 40, 0.8);
-      padding: 15px;
+      padding: 15px 30px;
       text-align: left;
       border-bottom: 2px solid #0ff;
       box-shadow: 0 2px 15px rgba(0,255,255,0.3);
     }
-
     .neon-text {
       font-family: 'Orbitron', sans-serif;
       color: #0ff;
       text-shadow: 0 0 5px #0ff, 0 0 10px #0ff, 0 0 20px #0ff;
     }
-
     .glass-card {
       background: rgba(20, 20, 40, 0.7);
       border: 2px solid rgba(0, 255, 255, 0.5);
@@ -71,7 +66,6 @@
       backdrop-filter: blur(10px);
       padding: 2rem;
     }
-
     .neon-btn {
       background: transparent;
       border: 2px solid #0ff;
@@ -85,28 +79,41 @@
       align-items: center;
       gap: 8px;
       text-decoration: none;
+      cursor: pointer;
     }
-
     .neon-btn:hover {
       background: #0ff;
       color: #000;
       box-shadow: 0 0 15px #0ff, 0 0 30px #0ff;
     }
-
     .plyr--video {
       max-width: 100%;
       border-radius: 12px;
       overflow: hidden;
     }
-
-    .video-title {
-      font-size: 1.2rem;
-      color: #0ff;
-      text-align: center;
+    .video-title-container {
+      height: 1.5rem;
+      overflow: hidden;
+      max-width: 100%;
       margin-bottom: 12px;
-      font-weight: bold;
     }
-
+    .video-title {
+      display: inline-block;
+      color: #0ff;
+      font-weight: bold;
+      font-size: 1.2rem;
+      text-align: center;
+      text-shadow: 0 0 5px #0ff, 0 0 10px #0ff, 0 0 20px #0ff;
+      position: relative;
+      white-space: nowrap;
+    }
+    @keyframes scrollTitle {
+      0% { transform: translateX(100%); }
+      100% { transform: translateX(-100%); }
+    }
+    .scroll-active {
+      animation: scrollTitle linear infinite;
+    }
     footer {
       background: rgba(0,0,0,0.8);
       text-align: center;
@@ -116,67 +123,50 @@
       font-size: 14px;
       margin-top: auto;
     }
-
     .icon {
       width: 20px;
       height: 20px;
     }
-	
   </style>
 </head>
 <body>
 
   <!-- Header -->
-	<header class="flex items-center justify-between px-6 py-3 bg-[rgba(20,20,40,0.8)] border-b-2 border-cyan-400 shadow-md">
-		<a href="https://t.me/your_channel" target="_blank" class="flex items-center gap-3">
-		<!-- Logo -->
-		<img src="https://img.icons8.com/color/48/0ff/telegram-app.png" alt="Logo" class="h-10 w-10">
-		<!-- Title -->
-		<h1 class="neon-text text-2xl cursor-pointer">MPT Player</h1>
-		</a>
-	</header>
+  <header class="flex items-center justify-start gap-3">
+    <a href="https://t.me/MoviesPlusTelugu" target="_blank" class="flex items-center gap-3">
+      <img src="https://i.ibb.co/Df8bVHtT/mptjoin.png" alt="Logo" class="h-10 w-15">
+      <h1 class="neon-text text-2xl cursor-pointer">MPT Player</h1>
+    </a>
+  </header>
 
   <!-- Video Player -->
-  <main class="container mx-auto mt-5 px-4">
+  <main class="container mx-auto mt-5 px-4 flex-1">
     <div class="glass-card max-w-6xl mx-auto">
       
       <!-- Video Title -->
-      <div class="video-title">{{file_name}}</div>
+      <div class="video-title-container">
+        <div id="videoTitle" class="video-title">{{file_name}}</div>
+      </div>
 
-      <!-- Video Player style="width:100%; height:540px;-->
-      <video id="player" playsinline class="w-full aspect-video">
+      <!-- Video Player -->
+      <video id="player" playsinline controls class="justify-content-center align-items-center w-100 d-flex  flex-wrap">
         <source src="{{file_url}}" type="video/mp4" />
-      <!-- Subtitles Track -->
-		<track kind="subtitles" label="English" srclang="en" src="your-subtitles.vtt" default>
+        <track kind="subtitles" label="English" srclang="en" src="{{file_url}}.vtt" default>
+      </video>
+	
+	
+	
+      <!-- Download Button -->
+      <div class="text-center mt-6">
+        <a onclick="lazyDownload()" class="neon-btn">
+          <img src="https://img.icons8.com/color/48/download--v1.png" class="icon"> Download Now
+        </a>
+      </div>
 
-	  </video>
-
-      
-  </main>
-		<!-- Download Button -->
-		<div class="text-center mt-6">
-		  <a onclick="lazyDownload()" class="neon-btn">Download Now</a>
-		</div>
-
-		<script>
-		function lazyDownload() {
-		  const video = document.querySelector('#player source');
-		  const a = document.createElement('a');
-		  a.href = video.src; // get actual video URL
-		  a.download = video.src.split('/').pop(); // filename
-		  document.body.appendChild(a);
-		  a.click();
-		  document.body.removeChild(a);
-		}
-		</script>
-
-  
-  
-  
-  <!-- External Players Centered -->
+      <!-- External Players -->
       <div class="text-center mt-6">
         <h2 class="text-xl mb-4 neon-text">Play with External Player</h2>
-        <div class="grid grid-cols-2 gap-4 max-w-md mx-auto">
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 max-w-md mx-auto">
           <button onclick="vlc_player()" class="neon-btn">
             <img src="https://img.icons8.com/color/48/vlc.png" class="icon"> VLC
           </button>
@@ -184,86 +174,88 @@
             <img src="https://i.ibb.co/jvfNZwyP/icons8-pot-player-64.png" class="icon"> MX
           </button>
           <button onclick="playit_player()" class="neon-btn">
-            <img src="https://img.icons8.com/ios/50/play.png" class="icon"> Playit
+            <img src="https://img.icons8.com/color/48/play.png" class="icon"> Playit
           </button>
           <button onclick="km_player()" class="neon-btn">
             <img src="https://img.icons8.com/color/48/k.png" class="icon"> KM
           </button>
           <button onclick="s_player()" class="neon-btn">
-            <img src="https://img.icons8.com/ios-filled/50/s.png" class="icon"> S Player
+            <img src="https://img.icons8.com/color/48/s.png" class="icon"> S Player
           </button>
           <button onclick="hd_player()" class="neon-btn">
-            <img src="https://img.icons8.com/ios/50/4k.png" class="icon"> HD 4K
+            <img src="https://img.icons8.com/color/48/4k.png" class="icon"> HD 4K
           </button>
         </div>
       </div>
-    </div>
-	
-	<!-- Telegram Button Below External Players -->
+
+	<!-- Telegram Dropdown -->
 	<div class="text-center mt-6">
 	  <button id="telegramBtn" class="neon-btn">
-		<img src="https://img.icons8.com/ios-filled/24/0ff/telegram-app.png" class="icon"> Telegram Channels ▼
+		<img src="https://img.icons8.com/color/48/telegram-app.png" class="icon"> Join Telegram  ▼
 	  </button>
 
-	  <div id="telegramDropdown" class="hidden mt-2 grid grid-cols-2 gap-2 max-w-sm mx-auto">
-		<a href="https://t.me/channel1" target="_blank" class="neon-btn">Channel 1</a>
-		<a href="https://t.me/channel2" target="_blank" class="neon-btn">Channel 2</a>
-		<a href="https://t.me/channel3" target="_blank" class="neon-btn">Channel 3</a>
-		<a href="https://t.me/channel4" target="_blank" class="neon-btn">Channel 4</a>
-		<a href="https://t.me/channel5" target="_blank" class="neon-btn">Channel 5</a>
-		<a href="https://t.me/channel6" target="_blank" class="neon-btn">Channel 6</a>
+	  <div id="telegramDropdown" class="hidden mt-2 grid grid-cols-3 gap-2 max-w-md mx-auto">
+
+		<!-- Main Channel -->
+		<a href="https://t.me/MoviesPlusTelugu" target="_blank" 
+		   class="neon-btn w-full justify-center whitespace-nowrap">
+		  <img src="https://img.icons8.com/color/48/telegram-app.png" class="icon"> Main Channel
+		</a>
+
+		<!-- Group -->
+		<a href="https://t.me/+o5kPr99SnjYwYzY1" target="_blank" 
+		   class="neon-btn w-full justify-center whitespace-nowrap">
+		  <img src="https://img.icons8.com/color/48/groups.png" class="icon"> Group
+		</a>
+
+		<!-- Movies -->
+		<a href="https://t.me/+ZdGmNj8G_2tmNjZl" target="_blank" 
+		   class="neon-btn w-full justify-center whitespace-nowrap">
+		  <img src="https://img.icons8.com/color/48/movie-projector.png" class="icon"> Movies
+		</a>
+
+		<!-- Web Series -->
+		<a href="https://t.me/+PfQs5upYZBM2OGNl" target="_blank" 
+		   class="neon-btn w-full justify-center whitespace-nowrap">
+		  <img src="https://img.icons8.com/color/48/film-reel.png" class="icon"> Web Series
+		</a>
+
+		<!-- TV Shows -->
+		<a href="https://t.me/+9rGVV2iXpvgzMTRl" target="_blank" 
+		   class="neon-btn w-full justify-center whitespace-nowrap">
+		  <img src="https://img.icons8.com/color/48/tv.png" class="icon"> TV Shows
+		</a>
+
+		<!-- Contact Us -->
+		<a href="https://t.me/MnTUploaderBot" target="_blank" 
+		   class="neon-btn w-full justify-center whitespace-nowrap">
+		  <img src="https://img.icons8.com/color/48/customer-support.png" class="icon"> Contact Us
+		</a>
+
 	  </div>
 	</div>
 
-	<script>
-	const telegramBtn = document.getElementById('telegramBtn');
-	const telegramDropdown = document.getElementById('telegramDropdown');
-
-	telegramBtn.addEventListener('click', () => {
-	  telegramDropdown.classList.toggle('hidden');
-	});
-	</script>
-	
-<!-- Action Buttons: Share, Like, Report, Watch Later -->
-<div class="flex justify-center items-center gap-4 mt-6 flex-wrap">
-  <!-- Share Button -->
-  <button onclick="copyLink()" class="neon-btn">
-    <img src="https://img.icons8.com/color/48/share--v1.png" class="icon"> Share
-  </button>
-
-  <!-- Like Button -->
-  <button id="likeBtn" class="neon-btn">
-    <img src="https://img.icons8.com/color/48/facebook-like--v1.png" class="icon"> Like
-  </button>
-
-  <!-- Report Button -->
-  <a href="feedback.html" class="neon-btn">
-    <img src="https://img.icons8.com/color/48/feedback.png" class="icon"> Report
-  </a>
-
-  <!-- Watch Later Button -->
-  <button class="neon-btn">
-    <img src="https://img.icons8.com/color/48/clock--v1.png" class="icon"> Watch Later
-  </button>
-</div>
-
-<script>
-// Copy link for Share button
-function copyLink() {
-  navigator.clipboard.writeText(window.location.href);
-  alert('Link copied to clipboard!');
-}
-
-// Like button
-const likeBtn = document.getElementById('likeBtn');
-likeBtn.addEventListener('click', () => {
-  alert('You liked this video!');
-});
-</script>
 
 
+      <!-- Action Buttons -->
+      <div class="flex justify-center items-center gap-4 mt-6 flex-wrap">
+        <button onclick="copyLink()" class="neon-btn">
+          <img src="https://img.icons8.com/color/48/share--v1.png" class="icon"> Share
+        </button>
+       <!--  <button id="likeBtn" class="neon-btn">
+          <img src="https://img.icons8.com/color/48/facebook-like--v1.png" class="icon"> Like
+        </button> -->
+        <a href="https://t.me/MnTUploaderBot" class="neon-btn">
+          <img src="https://img.icons8.com/color/48/feedback.png" class="icon"> Report
+        </a>
+        <!--<button class="neon-btn">
+          <img src="https://img.icons8.com/color/48/clock--v1.png" class="icon"> Watch Later
+        </button> -->
+      </div>
 
-	
+    </div>
+  </main>
+
   <!-- Footer -->
   <footer>
     © 2025 MPT Player | All Rights Reserved
@@ -280,15 +272,55 @@ likeBtn.addEventListener('click', () => {
       ]
     });
 
+    // Video title scroll after 20 sec
+    const videoTitle = document.getElementById('videoTitle');
+    setTimeout(() => {
+      const containerWidth = videoTitle.parentElement.offsetWidth;
+      const textWidth = videoTitle.scrollWidth;
+      const duration = (textWidth + containerWidth) / 50;
+      videoTitle.style.animationDuration = duration + 's';
+      videoTitle.classList.add('scroll-active');
+    }, 20000); // 20 seconds
+
+    // Download button
+    function lazyDownload() {
+      const video = document.querySelector('#player source');
+      const a = document.createElement('a');
+      a.href = video.src;
+      a.download = video.src.split('/').pop();
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    // External players
     const videolink = window.location.href;
     const lazyLink = videolink.replace("/watch/", "/");
-
     function vlc_player() { window.location.href = `vlc://${lazyLink}`; }
     function mx_player() { window.location.href = `intent:${lazyLink}#Intent;package=com.mxtech.videoplayer.ad;end`; }
     function playit_player() { window.location.href = `playit://playerv2/video?url=${lazyLink}`; }
     function s_player() { window.location.href = `intent:${lazyLink}#Intent;action=com.young.simple.player.playback_online;package=com.young.simple.player;end`; }
     function km_player() { window.location.href = `intent:${lazyLink}#Intent;package=com.kmplayer;end`; }
     function hd_player() { window.location.href = `intent:${lazyLink}#Intent;package=uplayer.video.player;end`; }
+
+    // Telegram dropdown
+    const telegramBtn = document.getElementById('telegramBtn');
+    const telegramDropdown = document.getElementById('telegramDropdown');
+    telegramBtn.addEventListener('click', () => {
+      telegramDropdown.classList.toggle('hidden');
+    });
+
+    // Share button
+    function copyLink() {
+      navigator.clipboard.writeText(window.location.href);
+      alert('Link copied to clipboard!');
+    }
+
+    // Like button
+    const likeBtn = document.getElementById('likeBtn');
+    likeBtn.addEventListener('click', () => {
+      alert('You liked this video!');
+    });
   </script>
 </body>
 </html>
