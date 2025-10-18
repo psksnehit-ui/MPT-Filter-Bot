@@ -8,7 +8,6 @@
   <link rel="stylesheet" href="https://cdn.plyr.io/3.6.9/plyr.css" />
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500&family=Poppins&display=swap" rel="stylesheet">
-
   <style>
     body {
       font-family: 'Poppins', sans-serif;
@@ -49,7 +48,6 @@
     header {
       background: rgba(20, 20, 40, 0.8);
       padding: 15px 30px;
-      text-align: left;
       border-bottom: 2px solid #0ff;
       box-shadow: 0 2px 15px rgba(0,255,255,0.3);
     }
@@ -78,8 +76,8 @@
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      text-decoration: none;
       cursor: pointer;
+      text-decoration: none;
     }
     .neon-btn:hover {
       background: #0ff;
@@ -87,32 +85,9 @@
       box-shadow: 0 0 15px #0ff, 0 0 30px #0ff;
     }
     .plyr--video {
-      max-width: 100%;
       border-radius: 12px;
       overflow: hidden;
-    }
-    .video-title-container {
-      height: 1.5rem;
-      overflow: hidden;
       max-width: 100%;
-      margin-bottom: 12px;
-    }
-    .video-title {
-      display: inline-block;
-      color: #0ff;
-      font-weight: bold;
-      font-size: 1.2rem;
-      text-align: center;
-      text-shadow: 0 0 5px #0ff, 0 0 10px #0ff, 0 0 20px #0ff;
-      position: relative;
-      white-space: nowrap;
-    }
-    @keyframes scrollTitle {
-      0% { transform: translateX(100%); }
-      100% { transform: translateX(-100%); }
-    }
-    .scroll-active {
-      animation: scrollTitle linear infinite;
     }
     footer {
       background: rgba(0,0,0,0.8);
@@ -123,89 +98,10 @@
       font-size: 14px;
       margin-top: auto;
     }
-    .icon {
-      width: 20px;
-      height: 20px;
-    }
-    
-    /* Custom fullscreen styles */
-    .plyr--fullscreen-active {
-      border-radius: 0 !important;
-    }
-    
-    /* Mobile touch controls */
-    .touch-controls {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      z-index: 10;
-      pointer-events: none;
-    }
-    
-    .touch-area {
-      flex: 1;
-      height: 100%;
-      pointer-events: auto;
-    }
-    
-    /* Keyboard shortcuts info */
-    .shortcuts-info {
-      position: fixed;
-      bottom: 80px;
-      right: 20px;
-      background: rgba(20, 20, 40, 0.9);
-      border: 1px solid #0ff;
-      border-radius: 10px;
-      padding: 15px;
-      z-index: 1000;
-      box-shadow: 0 0 15px rgba(0,255,255,0.5);
-      max-width: 300px;
-      display: none;
-    }
-    
-    .shortcuts-info.show {
-      display: block;
-    }
-    
-    .shortcut-item {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 8px;
-    }
-    
-    .shortcut-key {
-      background: rgba(0,255,255,0.2);
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-family: monospace;
-    }
-    
-    .shortcuts-toggle {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      background: rgba(20, 20, 40, 0.9);
-      border: 1px solid #0ff;
-      border-radius: 50%;
-      width: 50px;
-      height: 50px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      z-index: 1000;
-      box-shadow: 0 0 10px rgba(0,255,255,0.5);
-    }
   </style>
 </head>
 <body>
 
-  <!-- Header -->
   <header class="flex items-center justify-start gap-3">
     <a href="https://t.me/MoviesPlusTelugu" target="_blank" class="flex items-center gap-3">
       <img src="https://i.ibb.co/Df8bVHtT/mptjoin.png" alt="Logo" class="h-10 w-15">
@@ -213,192 +109,82 @@
     </a>
   </header>
 
-  <!-- Video Player -->
   <main class="container mx-auto mt-5 px-4 flex-1">
     <div class="glass-card max-w-6xl mx-auto">
-      
-      <!-- Video Title -->
+
       <div class="video-title-container">
         <div id="videoTitle" class="video-title">{{file_name}}</div>
       </div>
 
-      <!-- Video Player -->
-      <div class="plyr__video-embed" id="player">
-        <video playsinline controls>
-          <source src="{{file_url}}" type="video/mp4" />
-          <track kind="subtitles" label="English" srclang="en" src="{{file_url}}.vtt" default>
-        </video>
-        
-        <!-- Touch controls for mobile -->
-        <div class="touch-controls">
-          <div class="touch-area" data-action="rewind"></div>
-          <div class="touch-area" data-action="play-pause"></div>
-          <div class="touch-area" data-action="forward"></div>
-        </div>
-      </div>
-	
-      <!-- Download Button -->
+      <video id="player" playsinline controls>
+        <source src="{{file_url}}" type="video/mp4" />
+      </video>
+
       <div class="text-center mt-6">
         <a onclick="lazyDownload()" class="neon-btn">
           <img src="https://img.icons8.com/color/48/download--v1.png" class="icon"> Download Now
         </a>
       </div>
-
-      <!-- External Players -->
-      <div class="text-center mt-6">
-        <h2 class="text-xl mb-4 neon-text">Play with External Player</h2>
-        <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 max-w-md mx-auto">
-          <button onclick="vlc_player()" class="neon-btn">
-            <img src="https://img.icons8.com/color/48/vlc.png" class="icon"> VLC
-          </button>
-          <button onclick="mx_player()" class="neon-btn">
-            <img src="https://i.ibb.co/jvfNZwyP/icons8-pot-player-64.png" class="icon"> MX
-          </button>
-          <button onclick="playit_player()" class="neon-btn">
-            <img src="https://img.icons8.com/color/48/play.png" class="icon"> Playit
-          </button>
-          <button onclick="km_player()" class="neon-btn">
-            <img src="https://img.icons8.com/color/48/k.png" class="icon"> KM
-          </button>
-          <button onclick="s_player()" class="neon-btn">
-            <img src="https://img.icons8.com/color/48/s.png" class="icon"> S Player
-          </button>
-          <button onclick="hd_player()" class="neon-btn">
-            <img src="https://img.icons8.com/color/48/4k.png" class="icon"> HD 4K
-          </button>
-        </div>
-      </div>
-
-	<!-- Telegram Dropdown -->
-	<div class="text-center mt-6">
-	  <button id="telegramBtn" class="neon-btn">
-		<img src="https://img.icons8.com/color/48/telegram-app.png" class="icon"> Join Telegram  ▼
-	  </button>
-
-	  <div id="telegramDropdown" class="hidden mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2 max-w-md mx-auto">
-
-		<!-- Main Channel -->
-		<a href="https://t.me/MoviesPlusTelugu" target="_blank" 
-		   class="neon-btn w-full justify-center whitespace-nowrap">
-		  <img src="https://img.icons8.com/color/48/telegram-app.png" class="icon"> Main Channel
-		</a>
-
-		<!-- Group -->
-		<a href="https://t.me/+o5kPr99SnjYwYzY1" target="_blank" 
-		   class="neon-btn w-full justify-center whitespace-nowrap">
-		  <img src="https://img.icons8.com/color/48/groups.png" class="icon"> Group
-		</a>
-
-		<!-- Movies -->
-		<a href="https://t.me/+ZdGmNj8G_2tmNjZl" target="_blank" 
-		   class="neon-btn w-full justify-center whitespace-nowrap">
-		  <img src="https://img.icons8.com/color/48/movie-projector.png" class="icon"> Movies
-		</a>
-
-		<!-- Web Series -->
-		<a href="https://t.me/+PfQs5upYZBM2OGNl" target="_blank" 
-		   class="neon-btn w-full justify-center whitespace-nowrap">
-		  <img src="https://img.icons8.com/color/48/film-reel.png" class="icon"> Web Series
-		</a>
-
-		<!-- TV Shows -->
-		<a href="https://t.me/+9rGVV2iXpvgzMTRl" target="_blank" 
-		   class="neon-btn w-full justify-center whitespace-nowrap">
-		  <img src="https://img.icons8.com/color/48/tv.png" class="icon"> TV Shows
-		</a>
-
-		<!-- Contact Us -->
-		<a href="https://t.me/MnTUploaderBot" target="_blank" 
-		   class="neon-btn w-full justify-center whitespace-nowrap">
-		  <img src="https://img.icons8.com/color/48/customer-support.png" class="icon"> Contact Us
-		</a>
-
-	  </div>
-	</div>
-
-      <!-- Action Buttons -->
-      <div class="flex justify-center items-center gap-4 mt-6 flex-wrap">
-        <button onclick="copyLink()" class="neon-btn">
-          <img src="https://img.icons8.com/color/48/share--v1.png" class="icon"> Share
-        </button>
-        <a href="https://t.me/MnTUploaderBot" class="neon-btn">
-          <img src="https://img.icons8.com/color/48/feedback.png" class="icon"> Report
-        </a>
-      </div>
-
     </div>
   </main>
 
-  <!-- Footer -->
   <footer>
     © 2025 MPT Player | All Rights Reserved
   </footer>
 
-  <!-- Keyboard shortcuts info -->
-  <div class="shortcuts-info" id="shortcutsInfo">
-    <h3 class="neon-text text-center mb-3">Keyboard Shortcuts</h3>
-    <div class="shortcut-item">
-      <span>Fullscreen</span>
-      <span class="shortcut-key">F</span>
-    </div>
-    <div class="shortcut-item">
-      <span>Play/Pause</span>
-      <span class="shortcut-key">Space</span>
-    </div>
-    <div class="shortcut-item">
-      <span>Forward 10s</span>
-      <span class="shortcut-key">→</span>
-    </div>
-    <div class="shortcut-item">
-      <span>Backward 10s</span>
-      <span class="shortcut-key">←</span>
-    </div>
-    <div class="shortcut-item">
-      <span>Volume Up</span>
-      <span class="shortcut-key">↑</span>
-    </div>
-    <div class="shortcut-item">
-      <span>Volume Down</span>
-      <span class="shortcut-key">↓</span>
-    </div>
-  </div>
-  
-  <div class="shortcuts-toggle" id="shortcutsToggle">
-    <img src="https://img.icons8.com/color/48/keyboard.png" class="icon" alt="Keyboard shortcuts">
-  </div>
-
-  <!-- Scripts -->
   <script src="https://cdn.plyr.io/3.6.9/plyr.js"></script>
   <script>
-    // Initialize Plyr player
     const player = new Plyr('#player', {
       controls: [
         'play-large', 'rewind', 'play', 'fast-forward',
         'progress', 'current-time', 'duration', 'mute',
-        'volume', 'captions', 'settings', 'pip', 'airplay', 'fullscreen'
-      ],
-      keyboard: {
-        focused: true,
-        global: true
-      },
-      fullscreen: {
-        enabled: true,
-        fallback: true,
-        iosNative: true
+        'volume', 'settings', 'pip', 'airplay', 'fullscreen'
+      ]
+    });
+
+    // ---------- Keyboard Shortcuts ----------
+    document.addEventListener('keydown', (e) => {
+      if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+
+      switch (e.key.toLowerCase()) {
+        case 'f': // Toggle fullscreen
+          player.fullscreen.toggle();
+          break;
+        case 'arrowright': // Forward 10s
+          player.forward(10);
+          break;
+        case 'arrowleft': // Backward 10s
+          player.rewind(10);
+          break;
+        case ' ': // Space = Play/Pause
+          e.preventDefault();
+          player.togglePlay();
+          break;
       }
     });
 
-    // Video title scroll after 20 sec
-    const videoTitle = document.getElementById('videoTitle');
-    setTimeout(() => {
-      const containerWidth = videoTitle.parentElement.offsetWidth;
-      const textWidth = videoTitle.scrollWidth;
-      const duration = (textWidth + containerWidth) / 50;
-      videoTitle.style.animationDuration = duration + 's';
-      videoTitle.classList.add('scroll-active');
-    }, 20000); // 20 seconds
+    // ---------- Auto Rotate on Mobile ----------
+    player.on('enterfullscreen', async () => {
+      if (screen.orientation && screen.orientation.lock) {
+        try {
+          await screen.orientation.lock('landscape');
+        } catch (err) {
+          console.warn('Orientation lock not supported:', err);
+        }
+      }
+    });
 
-    // Download button
+    player.on('exitfullscreen', async () => {
+      if (screen.orientation && screen.orientation.unlock) {
+        try {
+          await screen.orientation.unlock();
+        } catch (err) {
+          console.warn('Orientation unlock not supported:', err);
+        }
+      }
+    });
+
+    // ---------- Download Function ----------
     function lazyDownload() {
       const video = document.querySelector('#player source');
       const a = document.createElement('a');
@@ -408,128 +194,6 @@
       a.click();
       document.body.removeChild(a);
     }
-
-    // External players
-    const videolink = window.location.href;
-    const lazyLink = videolink.replace("/watch/", "/");
-    function vlc_player() { window.location.href = `vlc://${lazyLink}`; }
-    function mx_player() { window.location.href = `intent:${lazyLink}#Intent;package=com.mxtech.videoplayer.ad;end`; }
-    function playit_player() { window.location.href = `playit://playerv2/video?url=${lazyLink}`; }
-    function s_player() { window.location.href = `intent:${lazyLink}#Intent;action=com.young.simple.player.playback_online;package=com.young.simple.player;end`; }
-    function km_player() { window.location.href = `intent:${lazyLink}#Intent;package=com.kmplayer;end`; }
-    function hd_player() { window.location.href = `intent:${lazyLink}#Intent;package=uplayer.video.player;end`; }
-
-    // Telegram dropdown
-    const telegramBtn = document.getElementById('telegramBtn');
-    const telegramDropdown = document.getElementById('telegramDropdown');
-    telegramBtn.addEventListener('click', () => {
-      telegramDropdown.classList.toggle('hidden');
-    });
-
-    // Share button
-    function copyLink() {
-      navigator.clipboard.writeText(window.location.href);
-      alert('Link copied to clipboard!');
-    }
-
-    // Keyboard shortcuts
-    document.addEventListener('keydown', (e) => {
-      // Don't trigger shortcuts when user is typing in an input field
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-      
-      switch(e.key) {
-        case 'f':
-        case 'F':
-          e.preventDefault();
-          player.fullscreen.toggle();
-          break;
-        case ' ':
-          e.preventDefault();
-          player.togglePlay();
-          break;
-        case 'ArrowRight':
-          e.preventDefault();
-          player.forward(10);
-          break;
-        case 'ArrowLeft':
-          e.preventDefault();
-          player.rewind(10);
-          break;
-        case 'ArrowUp':
-          e.preventDefault();
-          player.increaseVolume(0.1);
-          break;
-        case 'ArrowDown':
-          e.preventDefault();
-          player.decreaseVolume(0.1);
-          break;
-      }
-    });
-
-    // Mobile touch controls
-    const touchControls = document.querySelector('.touch-controls');
-    if (touchControls) {
-      touchControls.addEventListener('click', (e) => {
-        const action = e.target.getAttribute('data-action');
-        if (!action) return;
-        
-        switch(action) {
-          case 'rewind':
-            player.rewind(10);
-            break;
-          case 'play-pause':
-            player.togglePlay();
-            break;
-          case 'forward':
-            player.forward(10);
-            break;
-        }
-      });
-    }
-
-    // Auto-rotate on fullscreen for mobile
-    function lockOrientation() {
-      if (screen.orientation && screen.orientation.lock) {
-        screen.orientation.lock('landscape').catch(() => {
-          // Locking orientation failed, continue without it
-        });
-      }
-    }
-    
-    function unlockOrientation() {
-      if (screen.orientation && screen.orientation.unlock) {
-        screen.orientation.unlock();
-      }
-    }
-    
-    player.on('enterfullscreen', () => {
-      // Auto-rotate for mobile devices
-      if (/Android|iPhone|iPad/i.test(navigator.userAgent)) {
-        lockOrientation();
-      }
-    });
-    
-    player.on('exitfullscreen', () => {
-      // Unlock orientation when exiting fullscreen
-      if (/Android|iPhone|iPad/i.test(navigator.userAgent)) {
-        unlockOrientation();
-      }
-    });
-
-    // Keyboard shortcuts info toggle
-    const shortcutsInfo = document.getElementById('shortcutsInfo');
-    const shortcutsToggle = document.getElementById('shortcutsToggle');
-    
-    shortcutsToggle.addEventListener('click', () => {
-      shortcutsInfo.classList.toggle('show');
-    });
-    
-    // Hide shortcuts info when clicking outside
-    document.addEventListener('click', (e) => {
-      if (!shortcutsInfo.contains(e.target) && !shortcutsToggle.contains(e.target)) {
-        shortcutsInfo.classList.remove('show');
-      }
-    });
   </script>
 </body>
 </html>
