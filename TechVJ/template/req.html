@@ -242,26 +242,35 @@
       ]
     });
 
-    // Auto-rotate fullscreen on mobile
-    player.on('enterfullscreen', async () => {
+    // ✅ Handle fullscreen + auto landscape orientation
+    const video = document.getElementById('player');
+
+    async function lockLandscape() {
       try {
         if (screen.orientation && screen.orientation.lock) {
           await screen.orientation.lock('landscape');
+          console.log('Orientation locked');
         }
-      } catch (err) {
-        console.log('Orientation lock not supported:', err);
+      } catch (e) {
+        console.warn('Orientation lock failed:', e);
       }
-    });
+    }
 
-    player.on('exitfullscreen', async () => {
+    async function unlockOrientation() {
       try {
         if (screen.orientation && screen.orientation.unlock) {
           await screen.orientation.unlock();
         }
-      } catch (err) {
-        console.log('Orientation unlock not supported:', err);
-      }
-    });
+      } catch (e) {}
+    }
+
+    // Handle fullscreen entry (Android)
+    player.on('enterfullscreen', () => lockLandscape());
+    player.on('exitfullscreen', () => unlockOrientation());
+
+    // Handle webkit fullscreen events (iPhone Safari)
+    video.addEventListener('webkitbeginfullscreen', lockLandscape);
+    video.addEventListener('webkitendfullscreen', unlockOrientation);
 
     // Video title scroll after 20 sec
     const videoTitle = document.getElementById('videoTitle');
@@ -309,3 +318,4 @@
   </script>
 </body>
 </html>
+
