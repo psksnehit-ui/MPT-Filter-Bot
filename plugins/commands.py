@@ -20,6 +20,32 @@ logger = logging.getLogger(__name__)
 BATCH_FILES = {}
 join_db = JoinReqs
 
+def get_final_caption(files, title, size, f_caption):
+    """Generate final caption following the priority: DB caption > file name > custom caption"""
+    # Priority 1: Use caption from database if available and not empty
+    if f_caption and f_caption.strip():
+        final_caption = f_caption
+    else:
+        # Priority 2: Fallback to file name
+        final_caption = title
+    
+    # Always add file size to caption
+    final_caption += f"\n\n📦 Size: {size}"
+    
+    # Apply custom file caption if enabled
+    if CUSTOM_FILE_CAPTION:
+        try:
+            final_caption = CUSTOM_FILE_CAPTION.format(
+                file_name='' if title is None else title,
+                file_size='' if size is None else size,
+                file_caption=final_caption
+            )
+        except Exception as e:
+            logger.exception(e)
+            # Keep original caption if custom formatting fails
+    
+    return final_caption
+
 @Client.on_message(filters.command("start") & filters.incoming)
 async def start(client, message):
     try:
@@ -262,6 +288,10 @@ async def start(client, message):
                     f_caption=f_caption
             if f_caption is None:
                 f_caption = f"{title}"
+
+            # Apply unified caption logic
+            final_caption = get_final_caption(None, title, size, f_caption)
+            
             try:
                 if STREAM_MODE == True:
                     # Create the inline keyboard button with callback_data
@@ -314,7 +344,7 @@ async def start(client, message):
                 msg = await client.send_cached_media(
                     chat_id=message.from_user.id,
                     file_id=msg.get("file_id"),
-                    caption=f_caption,
+                    caption=final_caption,
                     protect_content=msg.get('protect', False),
                     reply_markup=InlineKeyboardMarkup(button)
                 )
@@ -326,7 +356,7 @@ async def start(client, message):
                 msg = await client.send_cached_media(
                     chat_id=message.from_user.id,
                     file_id=msg.get("file_id"),
-                    caption=f_caption,
+                    caption=final_caption,
                     protect_content=msg.get('protect', False),
                     reply_markup=InlineKeyboardMarkup(button)
                 )
@@ -371,7 +401,10 @@ async def start(client, message):
                     media = getattr(msg, msg.media.value)
                     file_name = getattr(media, 'file_name', '')
                     f_caption = getattr(msg, 'caption', file_name)
-                file_id = file.file_id
+
+                # Apply unified caption logic
+                final_caption = get_final_caption(None, file_name, size, f_caption)
+                
                 if STREAM_MODE == True:
                     # Create the inline keyboard button with callback_data
                     user_id = message.from_user.id
@@ -421,12 +454,12 @@ async def start(client, message):
                         InlineKeyboardButton('𝗕𝗢𝗧 𝗢𝗪𝗡𝗘𝗥', url=OWNER_LNK)
                     ]]
                 try:
-                    p = await msg.copy(message.chat.id, caption=f_caption, protect_content=True if protect == "/pbatch" else False, reply_markup=InlineKeyboardMarkup(button))
+                    p = await msg.copy(message.chat.id, caption=final_caption, protect_content=True if protect == "/pbatch" else False, reply_markup=InlineKeyboardMarkup(button))
                     filesarr.append(p)
                 except FloodWait as e:
                     k = await message.reply_text(f"Waiting For {e.value} Seconds.")
                     await asyncio.sleep(e.value)
-                    p = await msg.copy(message.chat.id, caption=f_caption, protect_content=True if protect == "/pbatch" else False, reply_markup=InlineKeyboardMarkup(button))
+                    p = await msg.copy(message.chat.id, caption=final_caption, protect_content=True if protect == "/pbatch" else False, reply_markup=InlineKeyboardMarkup(button))
                     filesarr.append(p)
                     await k.delete()
                 except Exception as e:
@@ -523,14 +556,10 @@ async def start(client, message):
             title = ' '.join(filter(lambda x: not x.startswith('[') and not x.startswith('@'), files1["file_name"].split()))
             size=get_size(files1["file_size"])
             f_caption=files1["caption"]
-            if CUSTOM_FILE_CAPTION:
-                try:
-                    f_caption=CUSTOM_FILE_CAPTION.format(file_name= '' if title is None else title, file_size='' if size is None else size, file_caption='' if f_caption is None else f_caption)
-                except Exception as e:
-                    logger.exception(e)
-                    f_caption=f_caption
-            if f_caption is None:
-                f_caption = f"{' '.join(filter(lambda x: not x.startswith('[') and not x.startswith('@'), files1['file_name'].split()))}"
+
+            # Apply unified caption logic
+            final_caption = get_final_caption(files1, title, size, f_caption)
+            
             if not await db.has_premium_access(message.from_user.id):
                 if not await check_verification(client, message.from_user.id) and VERIFY == True:
                     btn = [[
@@ -555,7 +584,7 @@ async def start(client, message):
             msg = await client.send_cached_media(
                 chat_id=message.from_user.id,
                 file_id=file_id,
-                caption=f_caption,
+                caption=final_caption,
                 protect_content=True if pre == 'allfilesp' else False,
                 reply_markup=InlineKeyboardMarkup(button)
             )
@@ -595,12 +624,12 @@ async def start(client, message):
     # If file details are NOT found in DB (fallback mode)
     # -------------------------------------------------------------
     if not files_:
-        pre, file_id = ((base64.urlsafe_b64decode(data + "=" * (-len(data) % 4)))
-                        .decode("ascii")).split("_", 1)
+        pre, file_id = ((base64.urlsafe_b64decode(data + "=" * (-len(data) % 4))).decode("ascii")).split("_", 1)
+        
         try:
             # ✅ Verification / Access checks
             if not await db.has_premium_access(message.from_user.id):
-                if not await check_verification(client, message.from_user.id) and VERIFY:
+                if not await check_verification(client, message.from_user.id) and VERIFY == True:
                     btn = [[
                         InlineKeyboardButton("Verify", url=await get_token(
                             client, message.from_user.id, f"https://telegram.me/{temp.U_NAME}?start="))
@@ -637,9 +666,12 @@ async def start(client, message):
             # ✅ Extract file info
             filetype = msg.media
             file = getattr(msg, filetype.value)
-            title = ' '.join(filter(lambda x: not x.startswith('[') and not x.startswith('@'),
-                                    file.file_name.split()))
-            size = get_size(file.file_size)
+            title = ' '.join(filter(lambda x: not x.startswith('[') and not x.startswith('@'), file.file_name.split()))
+            size=get_size(file.file_size)
+            f_caption = f"<code>{title}</code>"
+
+            # Apply unified caption logic
+            final_caption = get_final_caption(None, title, size, f_caption)
     
             # ✅ Prefer caption title if exists
             caption_name = getattr(msg, "caption", None)
@@ -650,19 +682,8 @@ async def start(client, message):
     
             f_caption = f"{f_caption}\n{size}"
     
-            # ✅ Support custom caption
-            if CUSTOM_FILE_CAPTION:
-                try:
-                    f_caption = CUSTOM_FILE_CAPTION.format(
-                        file_name=title,
-                        file_size=size,
-                        file_caption=f_caption
-                    )
-                except Exception as e:
-                    logger.exception(e)
-    
             await msg.edit_caption(
-                caption=f_caption,
+                caption=final_caption,
                 reply_markup=InlineKeyboardMarkup(button)
             )
     
@@ -690,37 +711,16 @@ async def start(client, message):
     # If file details FOUND in DB (normal case)
     # -------------------------------------------------------------
     files = files_
-    
-    title = ' '.join(filter(lambda x: not x.startswith('[') and not x.startswith('@'),
-                            files.get("file_name", "").split()))
-    size = get_size(files.get("file_size"))
-    f_caption = files.get("caption")
-    
-    # ✅ Use caption name if available, else original filename
-    if f_caption and str(f_caption).strip():
-        # remove <code> or HTML tags from stored caption
-        import re
-        f_caption = re.sub(r'<.*?>', '', f_caption).strip()
-    else:
-        f_caption = title
-    
-    # ✅ Append size to caption
-    f_caption = f"{f_caption}\n{size}"
-    
-    # ✅ Support custom caption formatting
-    if CUSTOM_FILE_CAPTION:
-        try:
-            f_caption = CUSTOM_FILE_CAPTION.format(
-                file_name=title,
-                file_size=size,
-                file_caption=f_caption
-            )
-        except Exception as e:
-            logger.exception(e)
+    title = ' '.join(filter(lambda x: not x.startswith('[') and not x.startswith('@'), files["file_name"].split()))
+    size=get_size(files["file_size"])
+    f_caption=files["caption"]
+
+    # Apply unified caption logic
+    final_caption = get_final_caption(files, title, size, f_caption)
     
     # ✅ Verification check
     if not await db.has_premium_access(message.from_user.id):
-        if not await check_verification(client, message.from_user.id) and VERIFY:
+        if not await check_verification(client, message.from_user.id) and VERIFY == True:
             btn = [[
                 InlineKeyboardButton("Verify", url=await get_token(
                     client, message.from_user.id, f"https://telegram.me/{temp.U_NAME}?start="))
@@ -750,7 +750,7 @@ async def start(client, message):
     msg = await client.send_cached_media(
         chat_id=message.from_user.id,
         file_id=file_id,
-        caption=f_caption,
+        caption=final_caption,
         protect_content=True if pre == 'filep' else False,
         reply_markup=InlineKeyboardMarkup(button)
     )
@@ -1580,5 +1580,6 @@ async def purge_requests(client, message):
             parse_mode=enums.ParseMode.MARKDOWN,
             disable_web_page_preview=True
         )
+
 
 
