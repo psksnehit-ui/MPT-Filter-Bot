@@ -26,9 +26,8 @@ sec_client = MongoClient(SEC_FILE_DB_URI)
 sec_db = sec_client[DATABASE_NAME]
 sec_col = sec_db[COLLECTION_NAME]
 
-
 async def save_file(media):
-    """Save file in database"""
+    """Save file in database (caption fallback to file name)."""
 
     file_id, file_ref = unpack_new_file_id(media.file_id)
     file_name = re.sub(r"(_|\-|\.|\+)", " ", str(media.file_name)) 
@@ -36,57 +35,117 @@ async def save_file(media):
     for char in unwanted_chars:
         file_name = file_name.replace(char, '')
     file_name = ' '.join(filter(lambda x: not x.startswith('@'), file_name.split()))
+
+    # ✅ Caption fallback logic
+    if media.caption and str(media.caption).strip():
+        caption_text = media.caption.html
+    else:
+        caption_text = f"<code>{file_name}</code>"  # fallback in <code> format for consistency
+
     file = {
         'file_id': file_id,
         'file_name': file_name,
         'file_size': media.file_size,
-        'caption': media.caption.html if media.caption else None
+        'caption': caption_text
     }
+
     found1 = {'file_name': file_name}
     found = {'file_id': file_id}
-    check1 = col.find_one(found1)
-    if check1:
+
+    # Avoid duplicates
+    if col.find_one(found1) or col.find_one(found):
         print(f"{file_name} is already saved.")
         return False, 0
-    check = col.find_one(found)
-    if check:
-        print(f"{file_name} is already saved.")
-        return False, 0
-    if MULTIPLE_DATABASE == True:
-        check3 = sec_col.find_one(found)
-        if check3:
+
+    if MULTIPLE_DATABASE:
+        if sec_col.find_one(found) or sec_col.find_one(found1):
             print(f"{file_name} is already saved.")
             return False, 0
-        check2 = sec_col.find_one(found1)
-        if check2:
-            print(f"{file_name} is already saved.")
-            return False, 0
+
         result = db.command('dbstats')
         data_size = result['dataSize']
-        if data_size > 503316480:
-            try:
+
+        try:
+            if data_size > 503316480:
                 sec_col.insert_one(file)
-                print(f"{file_name} is successfully saved.")
-                return True, 1
-            except DuplicateKeyError:      
-                print(f"{file_name} is already saved.")
-                return False, 0
-        else:
-            try:
+            else:
                 col.insert_one(file)
-                print(f"{file_name} is successfully saved.")
-                return True, 1
-            except DuplicateKeyError:      
-                print(f"{file_name} is already saved.")
-                return False, 0
+            print(f"{file_name} is successfully saved.")
+            return True, 1
+        except DuplicateKeyError:
+            print(f"{file_name} is already saved.")
+            return False, 0
+
     else:
         try:
             col.insert_one(file)
             print(f"{file_name} is successfully saved.")
             return True, 1
-        except DuplicateKeyError:      
+        except DuplicateKeyError:
             print(f"{file_name} is already saved.")
             return False, 0
+
+
+# async def save_file(media):
+#     """Save file in database"""
+
+#     file_id, file_ref = unpack_new_file_id(media.file_id)
+#     file_name = re.sub(r"(_|\-|\.|\+)", " ", str(media.file_name)) 
+#     unwanted_chars = ['[', ']', '(', ')']
+#     for char in unwanted_chars:
+#         file_name = file_name.replace(char, '')
+#     file_name = ' '.join(filter(lambda x: not x.startswith('@'), file_name.split()))
+#     file = {
+#         'file_id': file_id,
+#         'file_name': file_name,
+#         'file_size': media.file_size,
+#         'caption': media.caption.html if media.caption else None
+#     }
+#     found1 = {'file_name': file_name}
+#     found = {'file_id': file_id}
+#     check1 = col.find_one(found1)
+#     if check1:
+#         print(f"{file_name} is already saved.")
+#         return False, 0
+#     check = col.find_one(found)
+#     if check:
+#         print(f"{file_name} is already saved.")
+#         return False, 0
+#     if MULTIPLE_DATABASE == True:
+#         check3 = sec_col.find_one(found)
+#         if check3:
+#             print(f"{file_name} is already saved.")
+#             return False, 0
+#         check2 = sec_col.find_one(found1)
+#         if check2:
+#             print(f"{file_name} is already saved.")
+#             return False, 0
+#         result = db.command('dbstats')
+#         data_size = result['dataSize']
+#         if data_size > 503316480:
+#             try:
+#                 sec_col.insert_one(file)
+#                 print(f"{file_name} is successfully saved.")
+#                 return True, 1
+#             except DuplicateKeyError:      
+#                 print(f"{file_name} is already saved.")
+#                 return False, 0
+#         else:
+#             try:
+#                 col.insert_one(file)
+#                 print(f"{file_name} is successfully saved.")
+#                 return True, 1
+#             except DuplicateKeyError:      
+#                 print(f"{file_name} is already saved.")
+#                 return False, 0
+#     else:
+#         try:
+#             col.insert_one(file)
+#             print(f"{file_name} is successfully saved.")
+#             return True, 1
+#         except DuplicateKeyError:      
+#             print(f"{file_name} is already saved.")
+#             return False, 0
 
 async def get_search_results(chat_id, query, file_type=None, max_results=10, offset=0, filter=False):
     """For given query return (results, next_offset)"""
@@ -259,5 +318,6 @@ def unpack_new_file_id(new_file_id):
     )
     file_ref = encode_file_ref(decoded.file_reference)
     return file_id, file_ref
+
 
 
