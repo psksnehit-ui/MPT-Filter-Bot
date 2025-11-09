@@ -6,7 +6,7 @@ import logging
 from struct import pack
 import re
 import base64
-import json
+from html import unescape
 from datetime import datetime
 from pyrogram.file_id import FileId
 from pymongo import MongoClient
@@ -17,7 +17,7 @@ from utils import get_settings, save_group_settings
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-
+# ------------------ Database Connections ------------------
 client = MongoClient(FILE_DB_URI)
 db = client[DATABASE_NAME]
 col = db[COLLECTION_NAME]
@@ -26,39 +26,66 @@ sec_client = MongoClient(SEC_FILE_DB_URI)
 sec_db = sec_client[DATABASE_NAME]
 sec_col = sec_db[COLLECTION_NAME]
 
+
+# ------------------ Save File Function ------------------
 async def save_file(media):
-    """Save file in database (caption fallback to file name)."""
+    """Save file in database.
+    Take caption as file name if available, else use original file name.
+    """
 
     file_id, file_ref = unpack_new_file_id(media.file_id)
-    file_name = re.sub(r"(_|\-|\.|\+)", " ", str(media.file_name)) 
+
+    # Original file name cleanup
+    original_name = re.sub(r"(_|\-|\.|\+)", " ", str(media.file_name))
     unwanted_chars = ['[', ']', '(', ')']
     for char in unwanted_chars:
-        file_name = file_name.replace(char, '')
-    file_name = ' '.join(filter(lambda x: not x.startswith('@'), file_name.split()))
+        original_name = original_name.replace(char, '')
+    original_name = ' '.join(filter(lambda x: not x.startswith('@'), original_name.split())).strip()
 
-    # ✅ Caption fallback logic
-    if media.caption and str(media.caption).strip():
-        caption_text = media.caption.html
+    # ------------------ Caption-based Name Extraction ------------------
+    if media.caption and media.caption.html:
+        caption_text = unescape(media.caption.html)
+        caption_text = re.sub(r'<.*?>', '', caption_text)  # Remove HTML tags
+        caption_text = caption_text.strip()
+
+        # Try to extract movie/file-style name (with extension)
+        match = re.search(r'([A-Za-z0-9].*\.(mkv|mp4|avi|mov|m4v|srt|zip|rar))', caption_text)
+        if match:
+            file_name = match.group(1).strip()
+        else:
+            file_name = caption_text.strip()
     else:
-        caption_text = f"<code>{file_name}</code>"  # fallback in <code> format for consistency
+        file_name = original_name
 
-    file = {
+    # ------------------ Cleanup Final File Name ------------------
+    file_name = re.sub(r'@\S+', '', file_name)  # remove @tags
+    file_name = re.sub(r'[<>:"/\\|?*]', '', file_name)  # illegal FS chars
+    file_name = re.sub(r'\s+', ' ', file_name).strip()
+
+    # ------------------ Caption Fallback ------------------
+    if media.caption and media.caption.html:
+        caption_text_final = media.caption.html
+    else:
+        caption_text_final = f"<code>{file_name}</code>"
+
+    # ------------------ Build File Record ------------------
+    file_doc = {
         'file_id': file_id,
         'file_name': file_name,
         'file_size': media.file_size,
-        'caption': caption_text
+        'caption': caption_text_final
     }
 
-    found1 = {'file_name': file_name}
-    found = {'file_id': file_id}
+    found_by_name = {'file_name': file_name}
+    found_by_id = {'file_id': file_id}
 
-    # Avoid duplicates
-    if col.find_one(found1) or col.find_one(found):
+    # ------------------ Duplicate Check ------------------
+    if col.find_one(found_by_name) or col.find_one(found_by_id):
         print(f"{file_name} is already saved.")
         return False, 0
 
     if MULTIPLE_DATABASE:
-        if sec_col.find_one(found) or sec_col.find_one(found1):
+        if sec_col.find_one(found_by_id) or sec_col.find_one(found_by_name):
             print(f"{file_name} is already saved.")
             return False, 0
 
@@ -66,89 +93,29 @@ async def save_file(media):
         data_size = result['dataSize']
 
         try:
-            if data_size > 503316480:
-                sec_col.insert_one(file)
+            if data_size > 503316480:  # ~480MB limit
+                sec_col.insert_one(file_doc)
+                print(f"{file_name} successfully saved to secondary DB.")
             else:
-                col.insert_one(file)
-            print(f"{file_name} is successfully saved.")
+                col.insert_one(file_doc)
+                print(f"{file_name} successfully saved.")
             return True, 1
         except DuplicateKeyError:
             print(f"{file_name} is already saved.")
             return False, 0
-
     else:
         try:
-            col.insert_one(file)
-            print(f"{file_name} is successfully saved.")
+            col.insert_one(file_doc)
+            print(f"{file_name} successfully saved.")
             return True, 1
         except DuplicateKeyError:
             print(f"{file_name} is already saved.")
             return False, 0
 
 
-# async def save_file(media):
-#     """Save file in database"""
-
-#     file_id, file_ref = unpack_new_file_id(media.file_id)
-#     file_name = re.sub(r"(_|\-|\.|\+)", " ", str(media.file_name)) 
-#     unwanted_chars = ['[', ']', '(', ')']
-#     for char in unwanted_chars:
-#         file_name = file_name.replace(char, '')
-#     file_name = ' '.join(filter(lambda x: not x.startswith('@'), file_name.split()))
-#     file = {
-#         'file_id': file_id,
-#         'file_name': file_name,
-#         'file_size': media.file_size,
-#         'caption': media.caption.html if media.caption else None
-#     }
-#     found1 = {'file_name': file_name}
-#     found = {'file_id': file_id}
-#     check1 = col.find_one(found1)
-#     if check1:
-#         print(f"{file_name} is already saved.")
-#         return False, 0
-#     check = col.find_one(found)
-#     if check:
-#         print(f"{file_name} is already saved.")
-#         return False, 0
-#     if MULTIPLE_DATABASE == True:
-#         check3 = sec_col.find_one(found)
-#         if check3:
-#             print(f"{file_name} is already saved.")
-#             return False, 0
-#         check2 = sec_col.find_one(found1)
-#         if check2:
-#             print(f"{file_name} is already saved.")
-#             return False, 0
-#         result = db.command('dbstats')
-#         data_size = result['dataSize']
-#         if data_size > 503316480:
-#             try:
-#                 sec_col.insert_one(file)
-#                 print(f"{file_name} is successfully saved.")
-#                 return True, 1
-#             except DuplicateKeyError:      
-#                 print(f"{file_name} is already saved.")
-#                 return False, 0
-#         else:
-#             try:
-#                 col.insert_one(file)
-#                 print(f"{file_name} is successfully saved.")
-#                 return True, 1
-#             except DuplicateKeyError:      
-#                 print(f"{file_name} is already saved.")
-#                 return False, 0
-#     else:
-#         try:
-#             col.insert_one(file)
-#             print(f"{file_name} is successfully saved.")
-#             return True, 1
-#         except DuplicateKeyError:      
-#             print(f"{file_name} is already saved.")
-#             return False, 0
-
+# ------------------ Search Functions ------------------
 async def get_search_results(chat_id, query, file_type=None, max_results=10, offset=0, filter=False):
-    """For given query return (results, next_offset)"""
+    """For given query return (results, next_offset, total_results)"""
     if chat_id is not None:
         settings = await get_settings(int(chat_id))
         try:
@@ -163,6 +130,7 @@ async def get_search_results(chat_id, query, file_type=None, max_results=10, off
                 max_results = 10
             else:
                 max_results = int(MAX_B_TN)
+
     query = query.strip()
     if not query:
         raw_pattern = '.'
@@ -170,7 +138,7 @@ async def get_search_results(chat_id, query, file_type=None, max_results=10, off
         raw_pattern = r'(\b|[\.\+\-_])' + query + r'(\b|[\.\+\-_])'
     else:
         raw_pattern = query.replace(' ', r'.*[\s\.\+\-_]')
-    
+
     try:
         regex = re.compile(raw_pattern, flags=re.IGNORECASE)
     except:
@@ -181,48 +149,31 @@ async def get_search_results(chat_id, query, file_type=None, max_results=10, off
     else:
         filter = {'file_name': regex}
 
-    if MULTIPLE_DATABASE == True:
-        cursor1 = col.find(filter)
-        cursor1.sort('$natural', -1)
-        cursor2 = sec_col.find(filter)
-        cursor2.sort('$natural', -1)
+    if MULTIPLE_DATABASE:
+        cursor1 = col.find(filter).sort('$natural', -1)
+        cursor2 = sec_col.find(filter).sort('$natural', -1)
+        files_ = list(cursor1) + list(cursor2)
     else:
-        cursor = col.find(filter)
-        cursor.sort('$natural', -1)
-        
-    if MULTIPLE_DATABASE == True:
-        files1 = [file for file in cursor1]
-        files2 = [file for file in cursor2]
-        files_ = files1 + files2
-        files = files_[offset:][:max_results]
-        total_results = len(files_)
-        next_offset = offset + max_results
-        if next_offset >= total_results:
-            next_offset = ""
-    else:
-        files_ = [file for file in cursor]
-        files = files_[offset:][:max_results]
-        total_results = len(files_)
-        next_offset = offset + max_results
-        if next_offset >= total_results:
-            next_offset = ""
+        cursor = col.find(filter).sort('$natural', -1)
+        files_ = list(cursor)
+
+    total_results = len(files_)
+    files = files_[offset:offset + max_results]
+    next_offset = offset + max_results if offset + max_results < total_results else ""
 
     return files, next_offset, total_results
 
+
 async def get_bad_files(query, file_type=None, filter=False):
-    """For given query return (results, next_offset)"""
+    """For given query return (results, total_results)"""
     query = query.strip()
-    #if filter:
-        #better ?
-        #query = query.replace(' ', r'(\s|\.|\+|\-|_)')
-        #raw_pattern = r'(\s|_|\-|\.|\+)' + query + r'(\s|_|\-|\.|\+)'
     if not query:
         raw_pattern = '.'
     elif ' ' not in query:
         raw_pattern = r'(\b|[\.\+\-_])' + query + r'(\b|[\.\+\-_])'
     else:
         raw_pattern = query.replace(' ', r'.*[\s\.\+\-_]')
-    
+
     try:
         regex = re.compile(raw_pattern, flags=re.IGNORECASE)
     except:
@@ -233,60 +184,35 @@ async def get_bad_files(query, file_type=None, filter=False):
     else:
         filter = {'file_name': regex}
 
-    if MULTIPLE_DATABASE == True:
-        result1 = col.count_documents(filter)
-        result2 = sec_col.count_documents(filter)
-        total_results = result1 + result2
-    else:
-        total_results = col.count_documents(filter)
-    
-    if MULTIPLE_DATABASE == True:
-        cursor1 = col.find(filter)
-        cursor2 = sec_col.find(filter)
-    else:
-        cursor = col.find(filter)
-    # Get list of files
-    if MULTIPLE_DATABASE == True:
-        files1 = list(cursor1)
-        files2 = list(cursor2)
+    if MULTIPLE_DATABASE:
+        files1 = list(col.find(filter))
+        files2 = list(sec_col.find(filter))
         files = files1 + files2
+        total_results = len(files)
     else:
-        files = list(cursor)
-    
+        files = list(col.find(filter))
+        total_results = len(files)
+
     return files, total_results
 
-# async def get_file_details(query):
-#     filter = {'file_id': query}
-#     filedetails = col.find_one(filter)
-#     if not filedetails:
-#         filedetails = sec_col.find_one(filter)
-#     return filedetails
 
+# ------------------ File Details ------------------
 async def get_file_details(query):
-    """Get file details and ensure caption fallback to file_name."""
+    """Get file details; fallback to file_name if caption missing."""
     filter = {'file_id': query}
-    filedetails = col.find_one(filter)
-    if not filedetails:
-        filedetails = sec_col.find_one(filter)
+    filedetails = col.find_one(filter) or sec_col.find_one(filter)
     if not filedetails:
         return None
 
-    # Use caption if available, otherwise fallback to file_name
     caption = filedetails.get('caption')
     file_name = filedetails.get('file_name')
-
-    # If caption missing or empty, fallback to file name
-    display_name = caption if caption and caption.strip() else file_name
-
-    filedetails['display_name'] = display_name
+    filedetails['display_name'] = caption if caption and caption.strip() else file_name
     return filedetails
 
 
-
+# ------------------ ID Encode/Decode Helpers ------------------
 def encode_file_id(s: bytes) -> str:
-    r = b""
-    n = 0
-
+    r, n = b"", 0
     for i in s + bytes([22]) + bytes([4]):
         if i == 0:
             n += 1
@@ -294,9 +220,7 @@ def encode_file_id(s: bytes) -> str:
             if n:
                 r += b"\x00" + bytes([n])
                 n = 0
-
             r += bytes([i])
-
     return base64.urlsafe_b64encode(r).decode().rstrip("=")
 
 
@@ -305,19 +229,10 @@ def encode_file_ref(file_ref: bytes) -> str:
 
 
 def unpack_new_file_id(new_file_id):
-    """Return file_id, file_ref"""
+    """Return (file_id, file_ref)"""
     decoded = FileId.decode(new_file_id)
     file_id = encode_file_id(
-        pack(
-            "<iiqq",
-            int(decoded.file_type),
-            decoded.dc_id,
-            decoded.media_id,
-            decoded.access_hash
-        )
+        pack("<iiqq", int(decoded.file_type), decoded.dc_id, decoded.media_id, decoded.access_hash)
     )
     file_ref = encode_file_ref(decoded.file_reference)
     return file_id, file_ref
-
-
-
