@@ -465,16 +465,16 @@ def remove_escapes(text: str) -> str:
             res += text[counter]
     return res
 
-def humanbytes(size):
-    if not size:
-        return ""
-    power = 2**10
-    n = 0
-    Dic_powerN = {0: ' ', 1: 'Ki', 2: 'Mi', 3: 'Gi', 4: 'Ti'}
-    while size > power:
-        size /= power
-        n += 1
-    return str(round(size, 2)) + " " + Dic_powerN[n] + 'B'
+def humanbytes(size: int) -> str:
+    """Convert bytes to human-readable format (decimal base)."""
+    if not size or size <= 0:
+        return "0 B"
+    units = ["B", "KB", "MB", "GB", "TB", "PB"]
+    idx = 0
+    while size >= 1000 and idx < len(units) - 1:
+        size /= 1000.0
+        idx += 1
+    return f"{size:.2f} {units[idx]}"
 
 
 
@@ -736,3 +736,4 @@ async def get_seconds(time_string):
         return value * 86400 * 365
     else:
         return 0
+
