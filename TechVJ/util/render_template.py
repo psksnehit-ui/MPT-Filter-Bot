@@ -1,27 +1,32 @@
 import jinja2
+import urllib.parse
+import logging
+import aiohttp
 from info import *
 from TechVJ.bot import TechVJBot
 from TechVJ.util.human_readable import humanbytes
 from TechVJ.util.file_properties import get_file_ids
 from TechVJ.server.exceptions import InvalidHash
-import urllib.parse
-import logging
-import aiohttp
+from database.ia_filterdb import get_file_details  # ✅ add this import
 
 
 async def render_page(id, secure_hash, src=None):
+    # ✅ Fetch Telegram message + file info
     file = await TechVJBot.get_messages(int(LOG_CHANNEL), int(id))
     file_data = await get_file_ids(TechVJBot, int(LOG_CHANNEL), int(id))
+
+    # ✅ Verify link hash
     if file_data.unique_id[:6] != secure_hash:
-        logging.debug(f"link hash: {secure_hash} - {file_data.unique_id[:6]}")
-        logging.debug(f"Invalid hash for message with - ID {id}")
+        logging.debug(f"link hash mismatch: {secure_hash} != {file_data.unique_id[:6]}")
         raise InvalidHash
 
+    # ✅ Build streaming URL
     src = urllib.parse.urljoin(
         URL,
         f"{id}/{urllib.parse.quote_plus(file_data.file_name)}?hash={secure_hash}",
     )
 
+    # ✅ Determine file type and template
     tag = file_data.mime_type.split("/")[0].strip()
     file_size = humanbytes(file_data.file_size)
     if tag in ["video", "audio"]:
@@ -32,10 +37,18 @@ async def render_page(id, secure_hash, src=None):
             async with s.get(src) as u:
                 file_size = humanbytes(int(u.headers.get("Content-Length")))
 
+    # ✅ Get caption name from DB if available
+    db_file = await get_file_details(file_data.file_id)
+    if db_file and db_file.get("caption"):
+        # prefer caption over original file name
+        caption_text = db_file["caption"].strip()
+        file_name = caption_text.replace("_", " ")
+    else:
+        file_name = file_data.file_name.replace("_", " ")
+
+    # ✅ Render HTML page
     with open(template_file) as f:
         template = jinja2.Template(f.read())
-
-    file_name = file_data.file_name.replace("_", " ")
 
     return template.render(
         file_name=file_name,
@@ -43,3 +56,53 @@ async def render_page(id, secure_hash, src=None):
         file_size=file_size,
         file_unique_id=file_data.unique_id,
     )
+
+
+
+
+# import jinja2
+# from info import *
+# from TechVJ.bot import TechVJBot
+# from TechVJ.util.human_readable import humanbytes
+# from TechVJ.util.file_properties import get_file_ids
+# from TechVJ.server.exceptions import InvalidHash
+# import urllib.parse
+# import logging
+# import aiohttp
+
+
+# async def render_page(id, secure_hash, src=None):
+#     file = await TechVJBot.get_messages(int(LOG_CHANNEL), int(id))
+#     file_data = await get_file_ids(TechVJBot, int(LOG_CHANNEL), int(id))
+#     if file_data.unique_id[:6] != secure_hash:
+#         logging.debug(f"link hash: {secure_hash} - {file_data.unique_id[:6]}")
+#         logging.debug(f"Invalid hash for message with - ID {id}")
+#         raise InvalidHash
+
+#     src = urllib.parse.urljoin(
+#         URL,
+#         f"{id}/{urllib.parse.quote_plus(file_data.file_name)}?hash={secure_hash}",
+#     )
+
+#     tag = file_data.mime_type.split("/")[0].strip()
+#     file_size = humanbytes(file_data.file_size)
+#     if tag in ["video", "audio"]:
+#         template_file = "TechVJ/template/req.html"
+#     else:
+#         template_file = "TechVJ/template/dl.html"
+#         async with aiohttp.ClientSession() as s:
+#             async with s.get(src) as u:
+#                 file_size = humanbytes(int(u.headers.get("Content-Length")))
+
+#     with open(template_file) as f:
+#         template = jinja2.Template(f.read())
+
+#     file_name = file_data.file_name.replace("_", " ")
+
+#     return template.render(
+#         file_name=file_name,
+#         file_url=src,
+#         file_size=file_size,
+#         file_unique_id=file_data.unique_id,
+#     )
+
