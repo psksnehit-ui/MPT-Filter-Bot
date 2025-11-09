@@ -589,95 +589,139 @@ async def start(client, message):
             await k.edit("<b>Your message is successfully deleted!!!</b>")
             return
     user = message.from_user.id
-    files_ = await get_file_details(file_id)           
+    files_ = await get_file_details(file_id)
     if not files_:
         pre, file_id = ((base64.urlsafe_b64decode(data + "=" * (-len(data) % 4))).decode("ascii")).split("_", 1)
         try:
+            # ✅ Verification / Access checks
             if not await db.has_premium_access(message.from_user.id):
-                if not await check_verification(client, message.from_user.id) and VERIFY == True:
+                if not await check_verification(client, message.from_user.id) and VERIFY:
                     btn = [[
                         InlineKeyboardButton("Verify", url=await get_token(client, message.from_user.id, f"https://telegram.me/{temp.U_NAME}?start="))
                     ],[
                         InlineKeyboardButton("How To Open Link & Verify", url=VERIFY_TUTORIAL)
                     ]]
                     await message.reply_text(
-                        text="<b>You are not verified !\nKindly verify to continue !</b>",
+                        "<b>You are not verified!\nKindly verify to continue.</b>",
                         protect_content=True,
                         reply_markup=InlineKeyboardMarkup(btn)
                     )
                     return
+    
+            # ✅ Prepare UI buttons
             button = [[
                 InlineKeyboardButton('Sᴜᴘᴘᴏʀᴛ Gʀᴏᴜᴘ', url=f'https://t.me/{SUPPORT_CHAT}'),
                 InlineKeyboardButton('Uᴘᴅᴀᴛᴇs Cʜᴀɴɴᴇʟ', url=CHNL_LNK)
             ],[
                 InlineKeyboardButton("𝗕𝗢𝗧 𝗢𝗪𝗡𝗘𝗥", url=OWNER_LNK)
             ]]
-            if STREAM_MODE == True:
-                button.append([InlineKeyboardButton('🚀 Fast Download / Watch Online🖥️', callback_data=f'generate_stream_link:{file_id}')])
+            if STREAM_MODE:
+                button.append([InlineKeyboardButton('🚀 Fast Download / Watch Online 🖥️', callback_data=f'generate_stream_link:{file_id}')])
+    
+            # ✅ Send file from cache
             msg = await client.send_cached_media(
                 chat_id=message.from_user.id,
                 file_id=file_id,
                 protect_content=True if pre == 'filep' else False,
                 reply_markup=InlineKeyboardMarkup(button)
             )
+    
+            # ✅ Extract file info
             filetype = msg.media
             file = getattr(msg, filetype.value)
-            title = '@MnTLinkss  ' + ' '.join(filter(lambda x: not x.startswith('[') and not x.startswith('@'), file.file_name.split()))
-            size=get_size(file.file_size)
-            f_caption = f"<code>{title}</code>"
+            title = ' '.join(filter(lambda x: not x.startswith('[') and not x.startswith('@'), file.file_name.split()))
+            size = get_size(file.file_size)
+    
+            # ✅ Try to use caption name if exists
+            caption_name = getattr(file, "caption", None)
+            if caption_name:
+                f_caption = caption_name
+            else:
+                f_caption = f"{title}\n{size}"
+    
+            # ✅ Support custom caption formatting
             if CUSTOM_FILE_CAPTION:
                 try:
-                    f_caption=CUSTOM_FILE_CAPTION.format(file_name= '' if title is None else title, file_size='' if size is None else size, file_caption='')
-                except:
-                    return
+                    f_caption = CUSTOM_FILE_CAPTION.format(
+                        file_name=title,
+                        file_size=size,
+                        file_caption=f_caption
+                    )
+                except Exception as e:
+                    logger.exception(e)
+    
+            # ✅ Update caption
             await msg.edit_caption(
                 caption=f_caption,
                 reply_markup=InlineKeyboardMarkup(button)
             )
-            btn = [[
-                InlineKeyboardButton("Get File Again", callback_data=f'del#{file_id}')
-            ]]
-            k = await msg.reply("<b><u>❗️❗️❗️IMPORTANT❗️️❗️❗️</u></b>\n\nThis Movie File/Video will be deleted in <b><u>10 mins</u> 🫥 <i></b>(Due to Copyright Issues)</i>.\n\n<b><i>Please forward this File/Video to your Saved Messages and Start Download there</i></b>",quote=True)
+    
+            # ✅ Expiry warning & deletion
+            btn = [[InlineKeyboardButton("Get File Again", callback_data=f'del#{file_id}')]]
+            k = await msg.reply(
+                "<b><u>❗️❗️❗️ IMPORTANT ❗️❗️❗️</u></b>\n\n"
+                "This Movie File/Video will be deleted in <b><u>10 mins</u></b> 🫥 <i>(Due to Copyright Issues)</i>.\n\n"
+                "<b><i>Please forward this File/Video to your Saved Messages and start download there.</i></b>",
+                quote=True
+            )
             await asyncio.sleep(600)
             await msg.delete()
-            await k.edit_text("<b>Your File/Video is successfully deleted!!!\n\nClick below button to get your deleted file 👇</b>",reply_markup=InlineKeyboardMarkup(btn))
+            await k.edit_text(
+                "<b>Your File/Video is successfully deleted!\n\nClick below button to get your deleted file 👇</b>",
+                reply_markup=InlineKeyboardMarkup(btn)
+            )
             return
-        except:
-            pass
-        return await message.reply('No such file exist.')
-    files = files_
-    title = '@MnTLinkss  ' + ' '.join(filter(lambda x: not x.startswith('[') and not x.startswith('@'), files["file_name"].split()))
-    size=get_size(files["file_size"])
-    f_caption=files["caption"]
-    if CUSTOM_FILE_CAPTION:
-        try:
-            f_caption=CUSTOM_FILE_CAPTION.format(file_name= '' if title is None else title, file_size='' if size is None else size, file_caption='' if f_caption is None else f_caption)
         except Exception as e:
             logger.exception(e)
-            f_caption=f_caption
-    if f_caption is None:
-        f_caption = f"{' '.join(filter(lambda x: not x.startswith('[') and not x.startswith('@'), files['file_name'].split()))}"
+            return await message.reply('No such file exists.')
+    
+    # ✅ If file exists in DB
+    files = files_
+    title = ' '.join(filter(lambda x: not x.startswith('[') and not x.startswith('@'), files["file_name"].split()))
+    size = get_size(files["file_size"])
+    f_caption = files.get("caption")
+    
+    # ✅ Use saved caption or fallback
+    if not f_caption or str(f_caption).strip() == "":
+        f_caption = f"{title}\n{size}"
+    
+    # ✅ Support custom caption format
+    if CUSTOM_FILE_CAPTION:
+        try:
+            f_caption = CUSTOM_FILE_CAPTION.format(
+                file_name=title,
+                file_size=size,
+                file_caption=f_caption
+            )
+        except Exception as e:
+            logger.exception(e)
+    
+    # ✅ Verification
     if not await db.has_premium_access(message.from_user.id):
-        if not await check_verification(client, message.from_user.id) and VERIFY == True:
+        if not await check_verification(client, message.from_user.id) and VERIFY:
             btn = [[
                 InlineKeyboardButton("Verify", url=await get_token(client, message.from_user.id, f"https://telegram.me/{temp.U_NAME}?start="))
             ],[
                 InlineKeyboardButton("How To Open Link & Verify", url=VERIFY_TUTORIAL)
             ]]
             await message.reply_text(
-                text="<b>You are not verified !\nKindly verify to continue !</b>",
+                "<b>You are not verified!\nKindly verify to continue.</b>",
                 protect_content=True,
                 reply_markup=InlineKeyboardMarkup(btn)
             )
             return
+    
+    # ✅ Main buttons
     button = [[
         InlineKeyboardButton('Sᴜᴘᴘᴏʀᴛ Gʀᴏᴜᴘ', url=f'https://t.me/{SUPPORT_CHAT}'),
         InlineKeyboardButton('Uᴘᴅᴀᴛᴇs Cʜᴀɴɴᴇʟ', url=CHNL_LNK)
     ],[
         InlineKeyboardButton("𝗕𝗢𝗧 𝗢𝗪𝗡𝗘𝗥", url=OWNER_LNK)
     ]]
-    if STREAM_MODE == True:
-        button.append([InlineKeyboardButton('🚀 Fast Download / Watch Online🖥️', callback_data=f'generate_stream_link:{file_id}')])
+    if STREAM_MODE:
+        button.append([InlineKeyboardButton('🚀 Fast Download / Watch Online 🖥️', callback_data=f'generate_stream_link:{file_id}')])
+    
+    # ✅ Send final file
     msg = await client.send_cached_media(
         chat_id=message.from_user.id,
         file_id=file_id,
@@ -685,14 +729,22 @@ async def start(client, message):
         protect_content=True if pre == 'filep' else False,
         reply_markup=InlineKeyboardMarkup(button)
     )
-    btn = [[
-        InlineKeyboardButton("Get File Again", callback_data=f'del#{file_id}')
-    ]]
-    k = await msg.reply("<b><u>❗️❗️❗️IMPORTANT❗️️❗️❗️</u></b>\n\nThis Movie File/Video will be deleted in <b><u>10 mins</u> 🫥 <i></b>(Due to Copyright Issues)</i>.\n\n<b><i>Please forward this File/Video to your Saved Messages and Start Download there</i></b>",quote=True)
+    
+    # ✅ Expiry message
+    btn = [[InlineKeyboardButton("Get File Again", callback_data=f'del#{file_id}')]]
+    k = await msg.reply(
+        "<b><u>❗️❗️❗️ IMPORTANT ❗️❗️❗️</u></b>\n\n"
+        "This Movie File/Video will be deleted in <b><u>10 mins</u></b> 🫥 <i>(Due to Copyright Issues)</i>.\n\n"
+        "<b><i>Please forward this File/Video to your Saved Messages and start download there.</i></b>",
+        quote=True
+    )
     await asyncio.sleep(600)
     await msg.delete()
-    await k.edit_text("<b>Your File/Video is successfully deleted!!!\n\nClick below button to get your deleted file 👇</b>",reply_markup=InlineKeyboardMarkup(btn))
-    return   
+    await k.edit_text(
+        "<b>Your File/Video is successfully deleted!\n\nClick below button to get your deleted file 👇</b>",
+        reply_markup=InlineKeyboardMarkup(btn)
+    )
+    return
 
 @Client.on_message(filters.command('channel') & filters.user(ADMINS))
 async def channel_info(bot, message):
@@ -1502,3 +1554,4 @@ async def purge_requests(client, message):
             parse_mode=enums.ParseMode.MARKDOWN,
             disable_web_page_preview=True
         )
+
