@@ -8,6 +8,7 @@ from pyrogram import filters, Client, enums
 from pyrogram.errors.exceptions.bad_request_400 import ChannelInvalid, UsernameInvalid, UsernameNotModified
 from info import ADMINS, LOG_CHANNEL, FILE_STORE_CHANNEL, PUBLIC_FILE_STORE
 from database.ia_filterdb import unpack_new_file_id
+from TechVJ.util.human_readable import humanbytes
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -21,25 +22,46 @@ async def allowed(_, __, message):
 
 @Client.on_message(filters.command(['link', 'plink']) & filters.create(allowed))
 async def gen_link_s(bot, message):
-    vj = await bot.ask(chat_id = message.from_user.id, text = "Now Send Me Your Message Which You Want To Store.")
+    vj = await bot.ask(chat_id=message.from_user.id, text="Now Send Me Your Message Which You Want To Store.")
     file_type = vj.media
+
     if file_type not in [enums.MessageMediaType.VIDEO, enums.MessageMediaType.AUDIO, enums.MessageMediaType.DOCUMENT]:
-        return await vj.reply("Send me only video,audio,file or document.")
+        return await vj.reply("Send me only video, audio, or document files.")
+
     if message.has_protected_content and message.chat.id not in ADMINS:
-        return await message.reply("okDa")
-    file_id, ref = unpack_new_file_id((getattr(vj, file_type.value)).file_id)
+        return await message.reply("Protected messages cannot be stored by non-admins.")
+
+    # Get file details
+    media = getattr(vj, file_type.value)
+    file_id, ref = unpack_new_file_id(media.file_id)
+
+    # Determine caption and filename
+    caption = vj.caption.html if vj.caption else ""
+    file_name = media.file_name or "Unnamed File"
+    display_name = caption if caption.strip() else file_name
+
+    # Generate URL-safe start link
     string = 'filep_' if message.text.lower().strip() == "/plink" else 'file_'
     string += file_id
     outstr = base64.urlsafe_b64encode(string.encode("ascii")).decode().strip("=")
-    await message.reply(f"Here is your Link:\nhttps://t.me/{temp.U_NAME}?start={outstr}")    
+    link = f"https://t.me/{temp.U_NAME}?start={outstr}"
+
+    # Human readable size
+    size = humanbytes(media.file_size)
+
+    # Final message format
+    reply_text = f"<b>{display_name}</b>\n{size} - {link}"
+
+    await message.reply(reply_text, disable_web_page_preview=True)
+    
     
 @Client.on_message(filters.command(['batch', 'pbatch']) & filters.create(allowed))
 async def gen_link_batch(bot, message):
     if " " not in message.text:
-        return await message.reply("Use correct format.\nExample <code>/batch https://t.me/VJ_Botz/10 https://t.me/VJ_Botz/20</code>.")
+        return await message.reply("Use correct format.\nExample <code>/batch https://t.me/MnTLinkss/10 https://t.me/MnTLinkss/20</code>.")
     links = message.text.strip().split(" ")
     if len(links) != 3:
-        return await message.reply("Use correct format.\nExample <code>/batch https://t.me/VJ_Botz/10 https://t.me/VJ_Botz/20</code>.")
+        return await message.reply("Use correct format.\nExample <code>/batch https://t.me/MnTLinkss/10 https://t.me/MnTLinkss/20</code>.")
     cmd, first, last = links
     regex = re.compile("(https://)?(t\.me/|telegram\.me/|telegram\.dog/)(c/)?(\d+|[a-zA-Z_0-9]+)/(\d+)$")
     match = regex.match(first)
@@ -114,3 +136,4 @@ async def gen_link_batch(bot, message):
     os.remove(f"batchmode_{message.from_user.id}.json")
     file_id, ref = unpack_new_file_id(post.document.file_id)
     await sts.edit(f"Here is your link\nContains `{og_msg}` files.\n https://t.me/{temp.U_NAME}?start=BATCH-{file_id}")
+
