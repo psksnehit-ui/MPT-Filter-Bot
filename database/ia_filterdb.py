@@ -204,7 +204,7 @@ async def get_bad_files(query, file_type=None, filter=False):
 #     return filedetails
 
 async def get_file_details(query):
-    """Return file details with caption fallback to file_name."""
+    """Get file details and ensure caption fallback to file_name."""
     filter = {'file_id': query}
     filedetails = col.find_one(filter)
     if not filedetails:
@@ -212,24 +212,16 @@ async def get_file_details(query):
     if not filedetails:
         return None
 
-    # Clean caption: fallback to file_name if missing or empty
+    # Use caption if available, otherwise fallback to file_name
     caption = filedetails.get('caption')
     file_name = filedetails.get('file_name')
 
-    # Some captions are HTML (like <code>...</code>), strip tags if you want plain text
-    if caption:
-        clean_caption = re.sub(r"<.*?>", "", caption).strip()
-    else:
-        clean_caption = None
+    # If caption missing or empty, fallback to file name
+    display_name = caption if caption and caption.strip() else file_name
 
-    # Fallback if caption is missing or blank
-    if not clean_caption:
-        clean_caption = file_name
-
-    # Update in dict (optional, keeps compatibility)
-    filedetails['caption'] = clean_caption
-
+    filedetails['display_name'] = display_name
     return filedetails
+
 
 
 def encode_file_id(s: bytes) -> str:
@@ -267,4 +259,5 @@ def unpack_new_file_id(new_file_id):
     )
     file_ref = encode_file_ref(decoded.file_reference)
     return file_id, file_ref
+
 
