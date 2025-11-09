@@ -11,17 +11,31 @@
 #         n += 1
 #     return str(round(size, 2)) + " " + Dic_powerN[n] + 'B'
 
-def humanbytes(size):
+from decimal import Decimal, ROUND_HALF_UP
+
+def humanbytes(size: int) -> str:
     """
-    Convert bytes to human-readable format (decimal base).
-    Example: 1024*1024 -> 1.05 MB
+    Convert bytes to a human-readable format with exact decimal rounding.
+    Example:
+        1024*1024 -> 1.05 MB
+        384210000 -> 384.21 MB
     """
-    if not size:
-        return ""
-    power = 1000  # decimal
+    if not size or size <= 0:
+        return "0 B"
+
+    power = Decimal(1000)
+    units = ["B", "KB", "MB", "GB", "TB", "PB"]
+    size = Decimal(size)
     n = 0
-    units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+
     while size >= power and n < len(units) - 1:
         size /= power
         n += 1
-    return f"{size:.2f} {units[n]}"
+
+    # round exactly to 2 decimals
+    size = size.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    # remove trailing .00
+    size_str = f"{size:.2f}".rstrip("0").rstrip(".")
+
+    return f"{size_str} {units[n]}"
