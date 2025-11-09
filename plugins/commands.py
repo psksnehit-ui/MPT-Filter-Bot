@@ -20,32 +20,6 @@ logger = logging.getLogger(__name__)
 BATCH_FILES = {}
 join_db = JoinReqs
 
-def get_final_caption(files, title, size, f_caption):
-    """Generate final caption following the priority: DB caption > file name > custom caption"""
-    # Priority 1: Use caption from database if available and not empty
-    if f_caption and f_caption.strip():
-        final_caption = f_caption
-    else:
-        # Priority 2: Fallback to file name
-        final_caption = title
-    
-    # Always add file size to caption
-    final_caption += f"\n\n📦 Size: {size}"
-    
-    # Apply custom file caption if enabled
-    if CUSTOM_FILE_CAPTION:
-        try:
-            final_caption = CUSTOM_FILE_CAPTION.format(
-                file_name='' if title is None else title,
-                file_size='' if size is None else size,
-                file_caption=final_caption
-            )
-        except Exception as e:
-            logger.exception(e)
-            # Keep original caption if custom formatting fails
-    
-    return final_caption
-
 @Client.on_message(filters.command("start") & filters.incoming)
 async def start(client, message):
     try:
@@ -288,10 +262,6 @@ async def start(client, message):
                     f_caption=f_caption
             if f_caption is None:
                 f_caption = f"{title}"
-
-            # Apply unified caption logic
-            final_caption = get_final_caption(None, title, size, f_caption)
-            
             try:
                 if STREAM_MODE == True:
                     # Create the inline keyboard button with callback_data
@@ -344,7 +314,7 @@ async def start(client, message):
                 msg = await client.send_cached_media(
                     chat_id=message.from_user.id,
                     file_id=msg.get("file_id"),
-                    caption=final_caption,
+                    caption=f_caption,
                     protect_content=msg.get('protect', False),
                     reply_markup=InlineKeyboardMarkup(button)
                 )
@@ -356,7 +326,7 @@ async def start(client, message):
                 msg = await client.send_cached_media(
                     chat_id=message.from_user.id,
                     file_id=msg.get("file_id"),
-                    caption=final_caption,
+                    caption=f_caption,
                     protect_content=msg.get('protect', False),
                     reply_markup=InlineKeyboardMarkup(button)
                 )
@@ -401,10 +371,7 @@ async def start(client, message):
                     media = getattr(msg, msg.media.value)
                     file_name = getattr(media, 'file_name', '')
                     f_caption = getattr(msg, 'caption', file_name)
-
-                # Apply unified caption logic
-                final_caption = get_final_caption(None, file_name, size, f_caption)
-                
+                file_id = file.file_id
                 if STREAM_MODE == True:
                     # Create the inline keyboard button with callback_data
                     user_id = message.from_user.id
@@ -454,12 +421,12 @@ async def start(client, message):
                         InlineKeyboardButton('𝗕𝗢𝗧 𝗢𝗪𝗡𝗘𝗥', url=OWNER_LNK)
                     ]]
                 try:
-                    p = await msg.copy(message.chat.id, caption=final_caption, protect_content=True if protect == "/pbatch" else False, reply_markup=InlineKeyboardMarkup(button))
+                    p = await msg.copy(message.chat.id, caption=f_caption, protect_content=True if protect == "/pbatch" else False, reply_markup=InlineKeyboardMarkup(button))
                     filesarr.append(p)
                 except FloodWait as e:
                     k = await message.reply_text(f"Waiting For {e.value} Seconds.")
                     await asyncio.sleep(e.value)
-                    p = await msg.copy(message.chat.id, caption=final_caption, protect_content=True if protect == "/pbatch" else False, reply_markup=InlineKeyboardMarkup(button))
+                    p = await msg.copy(message.chat.id, caption=f_caption, protect_content=True if protect == "/pbatch" else False, reply_markup=InlineKeyboardMarkup(button))
                     filesarr.append(p)
                     await k.delete()
                 except Exception as e:
@@ -556,10 +523,14 @@ async def start(client, message):
             title = ' '.join(filter(lambda x: not x.startswith('[') and not x.startswith('@'), files1["file_name"].split()))
             size=get_size(files1["file_size"])
             f_caption=files1["caption"]
-
-            # Apply unified caption logic
-            final_caption = get_final_caption(files1, title, size, f_caption)
-            
+            if CUSTOM_FILE_CAPTION:
+                try:
+                    f_caption=CUSTOM_FILE_CAPTION.format(file_name= '' if title is None else title, file_size='' if size is None else size, file_caption='' if f_caption is None else f_caption)
+                except Exception as e:
+                    logger.exception(e)
+                    f_caption=f_caption
+            if f_caption is None:
+                f_caption = f"{' '.join(filter(lambda x: not x.startswith('[') and not x.startswith('@'), files1['file_name'].split()))}"
             if not await db.has_premium_access(message.from_user.id):
                 if not await check_verification(client, message.from_user.id) and VERIFY == True:
                     btn = [[
@@ -584,7 +555,7 @@ async def start(client, message):
             msg = await client.send_cached_media(
                 chat_id=message.from_user.id,
                 file_id=file_id,
-                caption=final_caption,
+                caption=f_caption,
                 protect_content=True if pre == 'allfilesp' else False,
                 reply_markup=InlineKeyboardMarkup(button)
             )
@@ -618,159 +589,110 @@ async def start(client, message):
             await k.edit("<b>Your message is successfully deleted!!!</b>")
             return
     user = message.from_user.id
-    files_ = await get_file_details(file_id)
-    
-    # -------------------------------------------------------------
-    # If file details are NOT found in DB (fallback mode)
-    # -------------------------------------------------------------
+    files_ = await get_file_details(file_id)           
     if not files_:
         pre, file_id = ((base64.urlsafe_b64decode(data + "=" * (-len(data) % 4))).decode("ascii")).split("_", 1)
-        
         try:
-            # ✅ Verification / Access checks
             if not await db.has_premium_access(message.from_user.id):
                 if not await check_verification(client, message.from_user.id) and VERIFY == True:
                     btn = [[
-                        InlineKeyboardButton("Verify", url=await get_token(
-                            client, message.from_user.id, f"https://telegram.me/{temp.U_NAME}?start="))
-                    ], [
+                        InlineKeyboardButton("Verify", url=await get_token(client, message.from_user.id, f"https://telegram.me/{temp.U_NAME}?start="))
+                    ],[
                         InlineKeyboardButton("How To Open Link & Verify", url=VERIFY_TUTORIAL)
                     ]]
                     await message.reply_text(
-                        "<b>You are not verified!\nKindly verify to continue.</b>",
+                        text="<b>You are not verified !\nKindly verify to continue !</b>",
                         protect_content=True,
                         reply_markup=InlineKeyboardMarkup(btn)
                     )
                     return
-    
-            # ✅ UI Buttons
             button = [[
                 InlineKeyboardButton('Sᴜᴘᴘᴏʀᴛ Gʀᴏᴜᴘ', url=f'https://t.me/{SUPPORT_CHAT}'),
                 InlineKeyboardButton('Uᴘᴅᴀᴛᴇs Cʜᴀɴɴᴇʟ', url=CHNL_LNK)
-            ], [
+            ],[
                 InlineKeyboardButton("𝗕𝗢𝗧 𝗢𝗪𝗡𝗘𝗥", url=OWNER_LNK)
             ]]
-            if STREAM_MODE:
-                button.append([InlineKeyboardButton(
-                    '🚀 Fast Download / Watch Online 🖥️',
-                    callback_data=f'generate_stream_link:{file_id}')])
-    
-            # ✅ Send cached media
+            if STREAM_MODE == True:
+                button.append([InlineKeyboardButton('🚀 Fast Download / Watch Online🖥️', callback_data=f'generate_stream_link:{file_id}')])
             msg = await client.send_cached_media(
                 chat_id=message.from_user.id,
                 file_id=file_id,
                 protect_content=True if pre == 'filep' else False,
                 reply_markup=InlineKeyboardMarkup(button)
             )
-    
-            # ✅ Extract file info
             filetype = msg.media
             file = getattr(msg, filetype.value)
-            title = ' '.join(filter(lambda x: not x.startswith('[') and not x.startswith('@'), file.file_name.split()))
+            title = '@MnTLinkss  ' + ' '.join(filter(lambda x: not x.startswith('[') and not x.startswith('@'), file.file_name.split()))
             size=get_size(file.file_size)
             f_caption = f"<code>{title}</code>"
-
-            # Apply unified caption logic
-            final_caption = get_final_caption(None, title, size, f_caption)
-    
-            # ✅ Prefer caption title if exists
-            caption_name = getattr(msg, "caption", None)
-            if caption_name and str(caption_name).strip():
-                f_caption = caption_name.strip()
-            else:
-                f_caption = title  # fallback to file name
-    
-            f_caption = f"{f_caption}\n{size}"
-    
+            if CUSTOM_FILE_CAPTION:
+                try:
+                    f_caption=CUSTOM_FILE_CAPTION.format(file_name= '' if title is None else title, file_size='' if size is None else size, file_caption='')
+                except:
+                    return
             await msg.edit_caption(
-                caption=final_caption,
+                caption=f_caption,
                 reply_markup=InlineKeyboardMarkup(button)
             )
-    
-            # ✅ Expiry warning and deletion
-            btn = [[InlineKeyboardButton("Get File Again", callback_data=f'del#{file_id}')]]
-            k = await msg.reply(
-                "<b><u>❗️❗️❗️ IMPORTANT ❗️❗️❗️</u></b>\n\n"
-                "This Movie File/Video will be deleted in <b><u>10 mins</u></b> 🫥 <i>(Due to Copyright Issues)</i>.\n\n"
-                "<b><i>Please forward this File/Video to your Saved Messages and start download there.</i></b>",
-                quote=True
-            )
+            btn = [[
+                InlineKeyboardButton("Get File Again", callback_data=f'del#{file_id}')
+            ]]
+            k = await msg.reply("<b><u>❗️❗️❗️IMPORTANT❗️️❗️❗️</u></b>\n\nThis Movie File/Video will be deleted in <b><u>10 mins</u> 🫥 <i></b>(Due to Copyright Issues)</i>.\n\n<b><i>Please forward this File/Video to your Saved Messages and Start Download there</i></b>",quote=True)
             await asyncio.sleep(600)
             await msg.delete()
-            await k.edit_text(
-                "<b>Your File/Video is successfully deleted!\n\nClick below button to get your deleted file 👇</b>",
-                reply_markup=InlineKeyboardMarkup(btn)
-            )
+            await k.edit_text("<b>Your File/Video is successfully deleted!!!\n\nClick below button to get your deleted file 👇</b>",reply_markup=InlineKeyboardMarkup(btn))
             return
-    
-        except Exception as e:
-            logger.exception(e)
-            return await message.reply('No such file exists.')
-    
-    # -------------------------------------------------------------
-    # If file details FOUND in DB (normal case)
-    # -------------------------------------------------------------
+        except:
+            pass
+        return await message.reply('No such file exist.')
     files = files_
-    title = ' '.join(filter(lambda x: not x.startswith('[') and not x.startswith('@'), files["file_name"].split()))
+    title = '@MnTLinkss  ' + ' '.join(filter(lambda x: not x.startswith('[') and not x.startswith('@'), files["file_name"].split()))
     size=get_size(files["file_size"])
     f_caption=files["caption"]
-
-    # Apply unified caption logic
-    final_caption = get_final_caption(files, title, size, f_caption)
-    
-    # ✅ Verification check
+    if CUSTOM_FILE_CAPTION:
+        try:
+            f_caption=CUSTOM_FILE_CAPTION.format(file_name= '' if title is None else title, file_size='' if size is None else size, file_caption='' if f_caption is None else f_caption)
+        except Exception as e:
+            logger.exception(e)
+            f_caption=f_caption
+    if f_caption is None:
+        f_caption = f"{' '.join(filter(lambda x: not x.startswith('[') and not x.startswith('@'), files['file_name'].split()))}"
     if not await db.has_premium_access(message.from_user.id):
         if not await check_verification(client, message.from_user.id) and VERIFY == True:
             btn = [[
-                InlineKeyboardButton("Verify", url=await get_token(
-                    client, message.from_user.id, f"https://telegram.me/{temp.U_NAME}?start="))
-            ], [
+                InlineKeyboardButton("Verify", url=await get_token(client, message.from_user.id, f"https://telegram.me/{temp.U_NAME}?start="))
+            ],[
                 InlineKeyboardButton("How To Open Link & Verify", url=VERIFY_TUTORIAL)
             ]]
             await message.reply_text(
-                "<b>You are not verified!\nKindly verify to continue.</b>",
+                text="<b>You are not verified !\nKindly verify to continue !</b>",
                 protect_content=True,
                 reply_markup=InlineKeyboardMarkup(btn)
             )
             return
-    
-    # ✅ UI Buttons
     button = [[
         InlineKeyboardButton('Sᴜᴘᴘᴏʀᴛ Gʀᴏᴜᴘ', url=f'https://t.me/{SUPPORT_CHAT}'),
         InlineKeyboardButton('Uᴘᴅᴀᴛᴇs Cʜᴀɴɴᴇʟ', url=CHNL_LNK)
-    ], [
+    ],[
         InlineKeyboardButton("𝗕𝗢𝗧 𝗢𝗪𝗡𝗘𝗥", url=OWNER_LNK)
     ]]
-    if STREAM_MODE:
-        button.append([InlineKeyboardButton(
-            '🚀 Fast Download / Watch Online 🖥️',
-            callback_data=f'generate_stream_link:{file_id}')])
-    
-    # ✅ Send final file
+    if STREAM_MODE == True:
+        button.append([InlineKeyboardButton('🚀 Fast Download / Watch Online🖥️', callback_data=f'generate_stream_link:{file_id}')])
     msg = await client.send_cached_media(
         chat_id=message.from_user.id,
         file_id=file_id,
-        caption=final_caption,
+        caption=f_caption,
         protect_content=True if pre == 'filep' else False,
         reply_markup=InlineKeyboardMarkup(button)
     )
-    
-    # ✅ Expiry message
-    btn = [[InlineKeyboardButton("Get File Again", callback_data=f'del#{file_id}')]]
-    k = await msg.reply(
-        "<b><u>❗️❗️❗️ IMPORTANT ❗️❗️❗️</u></b>\n\n"
-        "This Movie File/Video will be deleted in <b><u>10 mins</u></b> 🫥 <i>(Due to Copyright Issues)</i>.\n\n"
-        "<b><i>Please forward this File/Video to your Saved Messages and start download there.</i></b>",
-        quote=True
-    )
+    btn = [[
+        InlineKeyboardButton("Get File Again", callback_data=f'del#{file_id}')
+    ]]
+    k = await msg.reply("<b><u>❗️❗️❗️IMPORTANT❗️️❗️❗️</u></b>\n\nThis Movie File/Video will be deleted in <b><u>10 mins</u> 🫥 <i></b>(Due to Copyright Issues)</i>.\n\n<b><i>Please forward this File/Video to your Saved Messages and Start Download there</i></b>",quote=True)
     await asyncio.sleep(600)
     await msg.delete()
-    await k.edit_text(
-        "<b>Your File/Video is successfully deleted!\n\nClick below button to get your deleted file 👇</b>",
-        reply_markup=InlineKeyboardMarkup(btn)
-    )
-    return
-
+    await k.edit_text("<b>Your File/Video is successfully deleted!!!\n\nClick below button to get your deleted file 👇</b>",reply_markup=InlineKeyboardMarkup(btn))
+    return   
 
 @Client.on_message(filters.command('channel') & filters.user(ADMINS))
 async def channel_info(bot, message):
@@ -1580,6 +1502,3 @@ async def purge_requests(client, message):
             parse_mode=enums.ParseMode.MARKDOWN,
             disable_web_page_preview=True
         )
-
-
-
