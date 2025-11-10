@@ -238,10 +238,9 @@ def unpack_new_file_id(new_file_id):
     return file_id, file_ref
 
 # ------------------ Admin Movie Search ------------------
-# ------------------ Admin Movie Search ------------------
-async def get_movies_by_name(query, collection):
+def get_movies_by_name_sync(query, collection):
     """
-    Search for movies by name in the database
+    Search for movies by name in the database (synchronous version)
     
     Args:
         query: Movie name to search for
@@ -277,9 +276,17 @@ async def get_movies_by_name(query, collection):
     ]
     
     try:
-        # For synchronous pymongo, use list() instead of to_list()
+        # For synchronous pymongo
         results = list(collection.aggregate(pipeline))
         return results
     except Exception as e:
         print(f"Database error in get_movies_by_name: {e}")
         return []
+
+async def get_movies_by_name(query, collection):
+    """
+    Async wrapper for synchronous MongoDB calls
+    """
+    import asyncio
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, get_movies_by_name_sync, query, collection)
