@@ -290,3 +290,4 @@ async def get_movies_by_name(query, collection):
     import asyncio
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, get_movies_by_name_sync, query, collection)
+
