@@ -1648,7 +1648,10 @@ async def purge_requests(client, message):
 
 
 # ----------------------------------------------------------------------------------------------------
-# GetMovie Command for Admins with Pagination
+# ----------------------------------------------------------------------------------------------------
+# GetMovie Command for Admins with Pagination - Temp-free version
+MOVIE_SEARCH_DATA = {}  # Global dictionary for storing movie search results
+
 @Client.on_message(filters.command("getmovie") & filters.user(ADMINS))
 async def getmovie_command(client, message):
     """Handle /getmovie command to search for movie files - Admin Only"""
@@ -1679,14 +1682,18 @@ async def getmovie_command(client, message):
             await search_msg.edit_text(f"❌ **No files found for '{movie_name}'**")
             return
 
-        # Store results in temp for pagination
+        # Store results in global dictionary for pagination
         user_id = message.from_user.id
-        temp.MOVIE_SEARCH[user_id] = {
+        MOVIE_SEARCH_DATA[user_id] = {
             'query': movie_name,
             'results': all_results,
             'page': 1,
-            'total_pages': (len(all_results) + 9) // 10  # Calculate total pages (ceil division)
+            'total_pages': (len(all_results) + 9) // 10,  # Calculate total pages (ceil division)
+            'timestamp': message.date  # Store timestamp for cleanup
         }
+
+        # Clean up old searches (older than 1 hour)
+        await cleanup_old_searches()
 
         # Show first page
         await show_movie_page(client, search_msg, user_id, 1)
@@ -1700,7 +1707,7 @@ async def getmovie_command(client, message):
 async def show_movie_page(client, message_obj, user_id, page):
     """Show a specific page of movie results"""
     try:
-        user_data = temp.MOVIE_SEARCH.get(user_id)
+        user_data = MOVIE_SEARCH_DATA.get(user_id)
         if not user_data:
             await message_obj.edit_text("❌ **Search session expired. Please search again.**")
             return
@@ -1732,18 +1739,22 @@ async def show_movie_page(client, message_obj, user_id, page):
                 buttons.append(InlineKeyboardButton("Next ➡️", callback_data=f"movie_next_{page}"))
         
         if buttons:
-            # Add refresh button in second row
+            # Add refresh and close buttons in second row
             nav_buttons = [buttons]
-            nav_buttons.append([InlineKeyboardButton("🔄 Refresh", callback_data=f"movie_refresh_{page}")])
+            nav_buttons.append([
+                InlineKeyboardButton("🔄 Refresh", callback_data=f"movie_refresh_{page}"),
+                InlineKeyboardButton("❌ Close", callback_data="movie_close")
+            ])
             reply_markup = InlineKeyboardMarkup(nav_buttons)
         else:
-            reply_markup = None
+            # Only close button if no navigation
+            reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("❌ Close", callback_data="movie_close")]])
 
         # Update message with current page
         await message_obj.edit_text(response, reply_markup=reply_markup)
 
         # Update current page in user data
-        temp.MOVIE_SEARCH[user_id]['page'] = page
+        MOVIE_SEARCH_DATA[user_id]['page'] = page
 
     except Exception as e:
         logger.error(f"Error showing movie page: {e}", exc_info=True)
@@ -1795,6 +1806,26 @@ def format_movie_results(results, bot_username, current_page, total_pages, query
     
     return "\n".join(message_parts)
 
+async def cleanup_old_searches():
+    """Clean up search data older than 1 hour"""
+    try:
+        import time
+        current_time = time.time()
+        expired_users = []
+        
+        for user_id, data in MOVIE_SEARCH_DATA.items():
+            # If data is older than 1 hour (3600 seconds), mark for deletion
+            if hasattr(data, 'timestamp'):
+                if current_time - data['timestamp'] > 3600:
+                    expired_users.append(user_id)
+        
+        # Remove expired data
+        for user_id in expired_users:
+            del MOVIE_SEARCH_DATA[user_id]
+            
+    except Exception as e:
+        logger.error(f"Error cleaning up old searches: {e}")
+
 # Callback query handler for pagination
 @Client.on_callback_query(filters.regex(r"^movie_"))
 async def movie_pagination_callback(client, callback_query):
@@ -1803,7 +1834,15 @@ async def movie_pagination_callback(client, callback_query):
         data = callback_query.data
         user_id = callback_query.from_user.id
         
-        if data.startswith("movie_prev_"):
+        if data == "movie_close":
+            await callback_query.message.delete()
+            # Clean up user data
+            if user_id in MOVIE_SEARCH_DATA:
+                del MOVIE_SEARCH_DATA[user_id]
+            await callback_query.answer("Closed!")
+            return
+            
+        elif data.startswith("movie_prev_"):
             current_page = int(data.split("_")[2])
             await callback_query.answer()
             await show_movie_page(client, callback_query.message, user_id, current_page - 1)
