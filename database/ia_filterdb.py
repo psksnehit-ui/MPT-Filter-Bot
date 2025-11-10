@@ -238,27 +238,34 @@ def unpack_new_file_id(new_file_id):
     return file_id, file_ref
 
 # ------------------ Admin Movie Search ------------------
-async def search_movie_files(self, query, limit=10):
-    """Search for movie files by name or caption"""
-    try:
-        # Create a case-insensitive regex pattern for searching
-        pattern = {"$regex": query, "$options": "i"}
-        
-        # Search in both file_name and caption fields
-        filter_query = {
-            "$or": [
-                {"file_name": pattern},
-                {"caption": pattern}
-            ]
-        }
-        
-        # Find documents matching the query
-        cursor = self.collection.find(filter_query).limit(limit)
-        results = await cursor.to_list(length=limit)
-        
-        return results
-    except Exception as e:
-        logger.error(f"Error searching movie files: {e}")
-        return []
+async def get_movies_by_name(query, limit=10):
+    """Search for movies by name (compatibility function)"""
+    return await Media().search_movie_files(query, limit)
 
+class Media:
+    def __init__(self):
+        self.collection = col  # Your main collection
+        self.sec_collection = sec_col  # Your secondary collection if any
 
+    async def search_movie_files(self, query, limit=10):
+        """Search for movie files by name or caption"""
+        try:
+            # Create a case-insensitive regex pattern for searching
+            pattern = {"$regex": query, "$options": "i"}
+            
+            # Search in both file_name and caption fields
+            filter_query = {
+                "$or": [
+                    {"file_name": pattern},
+                    {"caption": pattern}
+                ]
+            }
+            
+            # Find documents matching the query
+            cursor = self.collection.find(filter_query).limit(limit)
+            results = await cursor.to_list(length=limit)
+            
+            return results
+        except Exception as e:
+            logger.error(f"Error searching movie files: {e}")
+            return []
