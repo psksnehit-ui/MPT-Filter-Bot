@@ -694,6 +694,48 @@ async def start(client, message):
     await k.edit_text("<b>Your File/Video is successfully deleted!!!\n\nClick below button to get your deleted file 👇</b>",reply_markup=InlineKeyboardMarkup(btn))
     return   
 
+@Client.on_message(filters.command("getmovie") & filters.user(ADMINS))
+async def get_movie_files(bot, message):
+    if len(message.command) < 2:
+        return await message.reply("Usage:\n`/getmovie <movie name>`", quote=True)
+
+    query = message.text.split(" ", 1)[1].strip()
+    await message.reply(f"🔍 Searching for: **{query}** ...", quote=True)
+
+    # Search case-insensitive file names in MongoDB
+    cursor = col.find({"file_name": {"$regex": query, "$options": "i"}})
+    results = await cursor.to_list(length=500)  # fetch up to 500 results
+
+    if not results:
+        return await message.reply("❌ No files found matching that name.", quote=True)
+
+    # Prepare messages in batches (Telegram limit ~4096 chars)
+    batch_text = ""
+    for file in results:
+        try:
+            file_name = file.get("file_name", "Unknown")
+            file_size = get_size(int(file.get("file_size", 0)))  # or humanbytes if you have it
+            file_id = file.get("file_id")
+            file_link = f"https://t.me/{bot.me.username}?start=file_{file_id}"
+
+            file_line = f"🎬 <b>{file_name}</b>\n{file_size} - {file_link}\n\n"
+
+            if len(batch_text) + len(file_line) > 4000:
+                await message.reply_text(batch_text, disable_web_page_preview=True)
+                batch_text = file_line  # start new batch
+            else:
+                batch_text += file_line
+
+        except Exception as e:
+            logger.error(f"Error formatting file: {e}")
+            continue
+
+    # send remaining batch
+    if batch_text:
+        await message.reply_text(batch_text, disable_web_page_preview=True)
+
+
+
 @Client.on_message(filters.command('channel') & filters.user(ADMINS))
 async def channel_info(bot, message):
     if isinstance(CHANNELS, (int, str)):
@@ -1502,3 +1544,4 @@ async def purge_requests(client, message):
             parse_mode=enums.ParseMode.MARKDOWN,
             disable_web_page_preview=True
         )
+
