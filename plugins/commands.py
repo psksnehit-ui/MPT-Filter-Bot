@@ -7,8 +7,7 @@ from Script import script
 from pyrogram import Client, filters, enums
 from pyrogram.errors import ChatAdminRequired, FloodWait
 from pyrogram.types import *
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from database.ia_filterdb import col, sec_col, get_file_details, unpack_new_file_id, get_bad_files
+from database.ia_filterdb import col, sec_col, get_file_details, unpack_new_file_id, get_bad_files, get_movies_by_name
 from database.users_chats_db import db, delete_all_referal_users, get_referal_users_count, get_referal_all_users, referal_add_user
 from database.join_reqs import JoinReqs
 from info import CLONE_MODE, OWNER_LNK, REACTIONS, CHANNELS, REQUEST_TO_JOIN_MODE, TRY_AGAIN_BTN, ADMINS, SHORTLINK_MODE, PREMIUM_AND_REFERAL_MODE, STREAM_MODE, AUTH_CHANNEL, REFERAL_PREMEIUM_TIME, REFERAL_COUNT, PAYMENT_TEXT, PAYMENT_QR, LOG_CHANNEL, PICS, BATCH_FILE_CAPTION, CUSTOM_FILE_CAPTION, PROTECT_CONTENT, CHNL_LNK, GRP_LNK, REQST_CHANNEL, SUPPORT_CHAT_ID, SUPPORT_CHAT, MAX_B_TN, VERIFY, SHORTLINK_API, SHORTLINK_URL, TUTORIAL, VERIFY_TUTORIAL, IS_TUTORIAL, URL
@@ -16,10 +15,13 @@ from utils import get_settings, pub_is_subscribed, get_size, is_subscribed, save
 from database.connections_mdb import active_connection
 from urllib.parse import quote_plus
 from TechVJ.util.file_properties import get_name, get_hash, get_media_file_size
+
 logger = logging.getLogger(__name__)
-temp = {}
 BATCH_FILES = {}
 join_db = JoinReqs
+
+# Temporary storage for selections
+temp = {}
 
 @Client.on_message(filters.command("start") & filters.incoming)
 async def start(client, message):
@@ -694,27 +696,31 @@ async def start(client, message):
     await msg.delete()
     await k.edit_text("<b>Your File/Video is successfully deleted!!!\n\nClick below button to get your deleted file 👇</b>",reply_markup=InlineKeyboardMarkup(btn))
     return   
+# ------------------------------------------------------------------------------------------
+
+
+from pyrogram import Client, filters
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from info import ADMINS
+from utils import get_size
+from database.ia_filterdb import get_movies_by_name
+
+# Temporary storage for selections
+temp = {}
 
 @Client.on_message(filters.command("getmovie") & filters.user(ADMINS))
 async def get_movie_list(bot, message):
     if len(message.command) < 2:
-        return await message.reply("Usage:\n`/getmovie <movie name>`", quote=True)
+        return await message.reply("Usage:\n<code>/getmovie &lt;movie name&gt;</code>", quote=True)
 
     query = message.text.split(" ", 1)[1].strip()
 
-    # Search all matching movies in DB
-    results = list(col.find({"file_name": {"$regex": query, "$options": "i"}}))
-
-    if not results:
+    # Fetch grouped movies from DB
+    movies = await get_movies_by_name(query)
+    if not movies:
         return await message.reply("❌ No files found matching that name.")
 
-    # Group by base movie name
-    movies = {}
-    for file in results:
-        name = file["file_name"].split("(")[0].strip()
-        movies.setdefault(name, []).append(file)
-
-    # Build buttons and numbered list
+    # Build list text & inline buttons
     buttons = []
     text_list = ""
     for i, (movie_name, files) in enumerate(movies.items(), 1):
@@ -726,10 +732,12 @@ async def get_movie_list(bot, message):
 
     # Send numbered list with buttons
     await message.reply_text(
-        f"🔍 Found movies for: **{query}**\n\n{text_list}",
-        reply_markup=InlineKeyboardMarkup(buttons)
+        f"🔍 Found movies for: <b>{query}</b>\n\n{text_list}",
+        reply_markup=InlineKeyboardMarkup(buttons),
+        parse_mode="html"
     )
-# ________________________________________________________________________
+
+
 @Client.on_callback_query()
 async def movie_callback(bot, query):
     if not query.data.startswith("getmovie_"):
@@ -755,15 +763,16 @@ async def movie_callback(bot, query):
         line = f"🎬 <b>{file_name}</b>\n{file_size} - {file_link}\n\n"
 
         if len(batch_text) + len(line) > 4000:
-            await query.message.reply_text(batch_text, disable_web_page_preview=True)
+            await query.message.reply_text(batch_text, disable_web_page_preview=True, parse_mode="html")
             batch_text = line
         else:
             batch_text += line
 
     if batch_text:
-        await query.message.reply_text(batch_text, disable_web_page_preview=True)
+        await query.message.reply_text(batch_text, disable_web_page_preview=True, parse_mode="html")
 
     await query.answer()  # remove loading state
+
 # ---------------------------------------------------------------------------------------------
 
 @Client.on_message(filters.command('channel') & filters.user(ADMINS))
@@ -1574,5 +1583,6 @@ async def purge_requests(client, message):
             parse_mode=enums.ParseMode.MARKDOWN,
             disable_web_page_preview=True
         )
+
 
 
