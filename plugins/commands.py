@@ -1507,456 +1507,116 @@ async def purge_requests(client, message):
 
 
 # ----------------------------------------------------------------------------------------------------
-import os
-import asyncio
-import re
-from pyrogram import Client, filters
-from pyrogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
-from pyrogram.enums import ParseMode
-from database.ia_filterdb import get_movies_by_name, col, sec_col
-from info import ADMINS
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ContextTypes, filters
+from database.ia_filterdb import Media
+from utils import get_size
+import math
 
-# Temporary storage for command states
-movie_search_states = {}
-
-def group_movies_by_base_name(movies):
-    """Group movies by their base name (without quality/resolution details)"""
-    movie_groups = {}
-    
-    for movie in movies:
-        original_name = movie["movie_name"]
-        
-        # Extract base movie name (remove quality, resolution, audio details)
-        base_name = extract_base_movie_name(original_name)
-        
-        if base_name not in movie_groups:
-            movie_groups[base_name] = {
-                "base_name": base_name,
-                "total_files": 0,
-                "files": [],
-                "original_names": []  # Store all original names for this group
-            }
-        
-        # Add files from this movie to the group
-        movie_groups[base_name]["total_files"] += movie["total_files"]
-        movie_groups[base_name]["files"].extend(movie["files"])
-        movie_groups[base_name]["original_names"].append(original_name)
-    
-    # Convert to list without using list() function - WORKAROUND
-    grouped_movies_list = []
-    for movie_group in movie_groups.values():
-        grouped_movies_list.append(movie_group)
-    
-    # Sort the list
-    grouped_movies_list.sort(key=lambda x: x["base_name"])
-    
-    return grouped_movies_list
-
-def extract_base_movie_name(file_name):
-    """Extract base movie name by removing quality, resolution, audio details"""
-    # Remove common quality indicators and file extensions
-    patterns_to_remove = [
-        # Resolutions
-        r'\b(1080p|720p|480p|360p|2160p|4K)\b',
-        # Quality
-        r'\b(BluRay|BR-Rip|WEB-Rip|WEB-DL|HDTV|DVD-Rip|HC)\b',
-        # Audio codecs
-        r'\b(DD\+?5\.1|DD5\.1|AAC2\.0|AAC\s?\d\.\d|AC3\s?\d\.\d|DTS)\b',
-        # Video codecs
-        r'\b(x264|x265|H264|H265|HEVC)\b',
-        # Bitrates
-        r'\b(\d+Kbps|\d+KBPS)\b',
-        # Language tags
-        r'\b(Telugu|English|Hindi|Tamil|Malayalam|Kannada)\b',
-        # Other common patterns
-        r'\b(ESub|ESubs|Subs|Subtitles)\b',
-        r'\b(Org|Original)\b',
-        r'\b(NF|DSNP|AMZN|WEB)\b',
-        # Technical specs in brackets/parentheses
-        r'\[[^\]]*\]',
-        r'\([^)]*\)',
-        # File extensions
-        r'\.(mkv|mp4|avi|mov|m4v|srt|zip|rar)$',
-        # Multiple spaces and special characters
-        r'\s+',
-        r'[\._\-]+$'
-    ]
-    
-    base_name = file_name
-    
-    # Apply patterns
-    for pattern in patterns_to_remove:
-        base_name = re.sub(pattern, ' ', base_name, flags=re.IGNORECASE)
-    
-    # Clean up: remove extra spaces, trim
-    base_name = re.sub(r'\s+', ' ', base_name).strip()
-    
-    # If we ended up with nothing, return the original name
-    if not base_name or len(base_name) < 2:
-        return file_name
-    
-    return base_name
-
-@Client.on_message(filters.command("getmovie") & filters.private)
-async def get_movie_command(client, message: Message):
-    # Check if user is admin
-    if message.from_user.id not in ADMINS:
-        await message.reply_text("🚫 This command is for admins only.")
-        return
-
-    # Parse command arguments
-    if len(message.command) < 2:
-        await message.reply_text(
-            "❌ **Usage:** `/getmovie <movie name>`\n\n"
-            "Example: `/getmovie avengers`",
-            parse_mode=ParseMode.MARKDOWN
-        )
-        return
-
-    movie_name = " ".join(message.command[1:])
-    
-    # Show searching message
-    search_msg = await message.reply_text(f"🔍 Searching for **{movie_name}**...")
-    
+async def getmovie_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /getmovie command to search for movie files"""
     try:
-        # Search in both collections
-        all_results = []
-        
-        # Search main collection
-        try:
-            main_results = await get_movies_by_name(movie_name, col)
-            if main_results:
-                all_results.extend(main_results)
-                print(f"Found {len(main_results)} results in main collection")
-        except Exception as e:
-            print(f"Error in main collection search: {e}")
-        
-        # Search secondary collection  
-        try:
-            sec_results = await get_movies_by_name(movie_name, sec_col)
-            if sec_results:
-                all_results.extend(sec_results)
-                print(f"Found {len(sec_results)} results in secondary collection")
-        except Exception as e:
-            print(f"Error in secondary collection search: {e}")
-        
-        if not all_results:
-            await search_msg.edit_text(f"❌ No movies found for **{movie_name}**")
-            return
-        
-        print(f"Total raw results: {len(all_results)}")
-        
-        # Group movies by base name
-        grouped_movies = group_movies_by_base_name(all_results)
-        
-        print(f"Grouped results: {len(grouped_movies)}")
-        
-        # Store results in temporary storage
-        state_key = f"{message.from_user.id}_{message.id}"
-        movie_search_states[state_key] = {
-            "grouped_results": grouped_movies,
-            "page": 0,  # Current page
-            "timestamp": asyncio.get_event_loop().time()
-        }
-        
-        # Show first page
-        await show_movie_page(client, search_msg, state_key, 0)
-        
-    except Exception as e:
-        await search_msg.edit_text(f"❌ Error searching for movies: {str(e)}")
-        print(f"Error in getmovie command: {e}")
-        import traceback
-        traceback.print_exc()
-
-async def show_movie_page(client, message, state_key, page):
-    """Show a page of movie results"""
-    if state_key not in movie_search_states:
-        await message.edit_text("❌ Search session expired!")
-        return
-    
-    state = movie_search_states[state_key]
-    grouped_movies = state["grouped_results"]
-    
-    # Calculate pagination
-    results_per_page = 10
-    total_pages = (len(grouped_movies) + results_per_page - 1) // results_per_page
-    start_idx = page * results_per_page
-    end_idx = min(start_idx + results_per_page, len(grouped_movies))
-    
-    current_page_results = grouped_movies[start_idx:end_idx]
-    
-    # Create response text
-    search_query = " ".join(message.text.split()[1:]) if hasattr(message, 'text') else "movie"
-    response_text = f"🎬 **Search Results for '{search_query}'**\n\n"
-    response_text += f"**Page {page + 1}/{total_pages}** • **Total: {len(grouped_movies)} movies**\n\n"
-    
-    keyboard = []
-    
-    # Add movie buttons for current page
-    for idx, movie in enumerate(current_page_results, start_idx + 1):
-        base_name_escaped = escape_html(movie["base_name"])
-        response_text += f"**{idx}. {base_name_escaped}** 📁 Files: {movie['total_files']}\n\n"
-        
-        # Add button for each movie group
-        button_text = f"{idx}. {truncate_text(movie['base_name'], 25)} ({movie['total_files']})"
-        
-        keyboard.append([
-            InlineKeyboardButton(
-                button_text,
-                callback_data=f"getmovie_{state_key}_{start_idx + idx - (start_idx + 1)}"
+        # Check if user provided a movie name
+        if len(context.args) == 0:
+            await update.message.reply_text(
+                "❌ Please provide a movie name.\n\n"
+                "Usage: /getmovie <movie name>\n"
+                "Example: /getmovie The Fantastic Four"
             )
-        ])
-    
-    # Add navigation buttons
-    nav_buttons = []
-    if page > 0:
-        nav_buttons.append(InlineKeyboardButton("⬅️ Previous", callback_data=f"page_{state_key}_{page-1}"))
-    
-    if page < total_pages - 1:
-        nav_buttons.append(InlineKeyboardButton("Next ➡️", callback_data=f"page_{state_key}_{page+1}"))
-    
-    if nav_buttons:
-        keyboard.append(nav_buttons)
-    
-    # Add cancel button
-    keyboard.append([InlineKeyboardButton("❌ Cancel", callback_data=f"getmovie_cancel_{state_key}")])
-    
-    await message.edit_text(
-        response_text,
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode=ParseMode.HTML
-    )
-
-@Client.on_callback_query(filters.regex(r"^page_"))
-async def handle_page_navigation(client, callback_query):
-    """Handle pagination"""
-    user_id = callback_query.from_user.id
-    data = callback_query.data.split("_")
-    
-    if user_id not in ADMINS:
-        await callback_query.answer("🚫 Admin only!", show_alert=True)
-        return
-    
-    state_key = f"{data[1]}_{data[2]}"
-    page = int(data[3])
-    
-    await callback_query.answer(f"Page {page + 1}")
-    await show_movie_page(client, callback_query.message, state_key, page)
-
-@Client.on_callback_query(filters.regex(r"^getmovie_"))
-async def handle_getmovie_callback(client, callback_query):
-    user_id = callback_query.from_user.id
-    data = callback_query.data.split("_")
-    
-    if user_id not in ADMINS:
-        await callback_query.answer("🚫 Admin only command!", show_alert=True)
-        return
-    
-    if data[1] == "cancel":
-        state_key = data[2]
-        if state_key in movie_search_states:
-            del movie_search_states[state_key]
-        await callback_query.message.edit_text("❌ Search cancelled.")
-        await callback_query.answer()
-        return
-    
-    state_key = f"{data[1]}_{data[2]}"
-    movie_index = int(data[3])
-    
-    if state_key not in movie_search_states:
-        await callback_query.answer("❌ Search session expired!", show_alert=True)
-        await callback_query.message.edit_text("❌ Search session expired. Please start a new search.")
-        return
-    
-    grouped_movies = movie_search_states[state_key]["grouped_results"]
-    
-    if movie_index >= len(grouped_movies):
-        await callback_query.answer("❌ Invalid selection!", show_alert=True)
-        return
-    
-    selected_movie_group = grouped_movies[movie_index]
-    
-    await callback_query.answer(f"📦 Loading {selected_movie_group['total_files']} files...")
-    
-    # Show files with Send button
-    await show_files_with_send_option(client, callback_query.message, selected_movie_group, user_id)
-
-async def show_files_with_send_option(client, message, movie_group, user_id):
-    """Show all files with a Send button"""
-    files = movie_group["files"]
-    base_name = movie_group["base_name"]
-    
-    # Show files preview with Send button
-    response_text = f"🎬 **{escape_html(base_name)}**\n\n"
-    response_text += f"**Found {len(files)} files:**\n\n"
-    
-    # Show first few files as preview
-    preview_files = files[:3]  # Show first 3 files as preview
-    for idx, file_data in enumerate(preview_files, 1):
-        file_name = escape_html(file_data.get("file_name", "Unknown"))
-        file_size = format_size(file_data.get("file_size", 0))
-        
-        response_text += f"**{idx}. {file_name}**\n"
-        response_text += f"   📏 Size: {file_size}\n\n"
-    
-    if len(files) > 3:
-        response_text += f"**... and {len(files) - 3} more files**\n\n"
-    
-    response_text += "Click **Send All Files** to send all files in the requested format."
-    
-    # Create keyboard with Send button
-    keyboard = [
-        [InlineKeyboardButton("📤 Send All Files", callback_data=f"sendall_{user_id}_{message.id}")],
-        [InlineKeyboardButton("🔙 Back to List", callback_data="back_to_list")]
-    ]
-    
-    # Store files data for sending
-    send_key = f"{user_id}_{message.id}"
-    movie_search_states[send_key] = {
-        "files": files,
-        "movie_name": base_name,
-        "timestamp": asyncio.get_event_loop().time()
-    }
-    
-    await message.edit_text(
-        response_text,
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode=ParseMode.HTML,
-        disable_web_page_preview=True
-    )
-
-@Client.on_callback_query(filters.regex(r"^sendall_"))
-async def handle_send_all_files(client, callback_query):
-    user_id = callback_query.from_user.id
-    data = callback_query.data.split("_")
-    
-    if user_id not in ADMINS:
-        await callback_query.answer("🚫 Admin only!", show_alert=True)
-        return
-    
-    send_key = f"{data[1]}_{data[2]}"
-    
-    if send_key not in movie_search_states:
-        await callback_query.answer("❌ Session expired!", show_alert=True)
-        return
-    
-    state = movie_search_states[send_key]
-    files = state["files"]
-    movie_name = state["movie_name"]
-    
-    await callback_query.answer(f"📤 Sending {len(files)} files...")
-    
-    # Remove the inline keyboard from original message
-    await callback_query.message.edit_reply_markup(reply_markup=None)
-    
-    # Send all files in the requested format
-    await send_all_files_formatted(client, callback_query.message, files, movie_name)
-    
-    # Clean up
-    if send_key in movie_search_states:
-        del movie_search_states[send_key]
-
-@Client.on_callback_query(filters.regex(r"^back_to_list$"))
-async def handle_back_to_list(client, callback_query):
-    user_id = callback_query.from_user.id
-    
-    if user_id not in ADMINS:
-        await callback_query.answer("🚫 Admin only!", show_alert=True)
-        return
-    
-    # Find the original search state and go back to the list
-    for key, state in movie_search_states.items():
-        if key.startswith(f"{user_id}_"):
-            await callback_query.answer("Going back...")
-            await show_movie_page(client, callback_query.message, key, state.get("page", 0))
             return
-    
-    await callback_query.answer("No previous search found!")
-    await callback_query.message.edit_text("🔙 Use /getmovie command again to search for movies.")
 
-async def send_all_files_formatted(client, message, files, movie_name):
-    """Send all files in the exact format requested"""
-    
-    # Send in batches to avoid message length limits
-    batch_size = 5
-    batches = [files[i:i + batch_size] for i in range(0, len(files), batch_size)]
-    
-    # Send header message
-    await message.reply_text(f"🎬 **{escape_html(movie_name)}**\n\n**Sending all {len(files)} files:**")
-    
-    total_sent = 0
-    
-    for batch_num, batch in enumerate(batches, 1):
-        batch_text = ""
+        # Get the movie name from command arguments
+        movie_name = " ".join(context.args)
+        user = update.effective_user
         
-        for file_data in batch:
-            file_name = file_data.get("file_name", "Unknown")
-            file_size = format_size(file_data.get("file_size", 0))
-            file_id = file_data.get("file_id", "")
-            
-            # Create Telegram file link
-            if file_id:
-                file_link = f"https://t.me/{client.me.username}?start=file_{file_id}"
-            else:
-                file_link = "❌ No file ID available"
-            
-            # Format exactly as requested
-            batch_text += f"{file_name}\n"
-            batch_text += f"{file_size} - {file_link}\n\n"
-            total_sent += 1
+        # Log the command usage
+        logger.info(f"User {user.id} searched for movie: {movie_name}")
+
+        # Search for movie files
+        results = await Media().search_movie_files(movie_name, limit=10)
         
-        if len(batches) > 1:
-            batch_text += f"**Batch {batch_num}/{len(batches)}** • {total_sent}/{len(files)} files sent\n"
+        if not results:
+            await update.message.reply_text(
+                f"❌ No files found for '{movie_name}'"
+            )
+            return
+
+        # Format the results
+        response = format_movie_results(results, context.bot.username)
         
-        await message.reply_text(
-            batch_text.strip(),
-            parse_mode=ParseMode.MARKDOWN,
-            disable_web_page_preview=True
+        # Send the response (automatically handles message splitting)
+        await send_long_message(update, response)
+
+    except Exception as e:
+        logger.error(f"Error in getmovie command: {e}")
+        await update.message.reply_text(
+            "❌ An error occurred while searching. Please try again later."
+        )
+
+def format_movie_results(results, bot_username):
+    """Format movie results into a readable message"""
+    if not results:
+        return "No results found."
+    
+    message_parts = []
+    message_parts.append(f"🎬 <b>Search Results ({len(results)} found):</b>\n")
+    
+    for i, result in enumerate(results, 1):
+        # Get file name (prefer caption, fall back to file_name)
+        file_name = result.get('caption') or result.get('file_name', 'Unknown')
+        
+        # Get file size in readable format
+        file_size = get_size(result.get('file_size', 0))
+        
+        # Create direct link
+        file_id = result.get('file_id', '')
+        direct_link = f"https://t.me/{bot_username}?start=file_{file_id}"
+        
+        # Format the entry
+        entry = (
+            f"🎬 {file_name}\n"
+            f"📦 {file_size}\n"
+            f"🔗 {direct_link}\n"
         )
         
-        # Small delay to avoid rate limiting
-        await asyncio.sleep(0.5)
+        message_parts.append(entry)
     
-    # Send completion message
-    await message.reply_text(f"✅ **Completed!** Sent all {len(files)} files.")
+    return "\n".join(message_parts)
 
-# Utility functions
-def escape_html(text):
-    """Escape HTML special characters"""
-    if not text:
-        return ""
-    return str(text).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-
-def truncate_text(text, max_length):
-    """Truncate text and add ellipsis if too long"""
+async def send_long_message(update, text, max_length=4096):
+    """Send long messages by splitting them if they exceed Telegram's limit"""
     if len(text) <= max_length:
-        return text
-    return text[:max_length] + "..."
-
-def format_size(size_bytes):
-    """Format file size in human readable format"""
-    if not size_bytes:
-        return "0 B"
+        await update.message.reply_text(text, parse_mode='HTML')
+        return
     
-    size_names = ["B", "KB", "MB", "GB", "TB"]
-    i = 0
-    while size_bytes >= 1024 and i < len(size_names) - 1:
-        size_bytes /= 1024.0
-        i += 1
-    return f"{size_bytes:.2f} {size_names[i]}"
+    # Split the message into chunks
+    messages = []
+    current_message = ""
+    
+    for line in text.split('\n'):
+        if len(current_message + line + '\n') > max_length:
+            if current_message:
+                messages.append(current_message.strip())
+                current_message = line + '\n'
+            else:
+                # Single line is too long, split it
+                chunks = [line[i:i+max_length] for i in range(0, len(line), max_length)]
+                messages.extend(chunks[:-1])
+                current_message = chunks[-1] + '\n'
+        else:
+            current_message += line + '\n'
+    
+    if current_message.strip():
+        messages.append(current_message.strip())
+    
+    # Send all message chunks
+    for msg in messages:
+        await update.message.reply_text(msg, parse_mode='HTML')
 
-# Clean up expired states periodically
-async def cleanup_expired_states():
-    """Clean up expired search states"""
-    while True:
-        current_time = asyncio.get_event_loop().time()
-        expired_keys = []
-        for key, state in movie_search_states.items():
-            if current_time - state["timestamp"] > 300:  # 5 minutes expiration
-                expired_keys.append(key)
-        for key in expired_keys:
-            del movie_search_states[key]
-        await asyncio.sleep(60)  # Run every minute
-
-# Start cleanup task when bot starts
-asyncio.create_task(cleanup_expired_states())
+# Add the command handler to your existing command setup
+def add_handlers(application):
+    """Add all command handlers"""
+    # Your existing handlers...
+    application.add_handler(CommandHandler("getmovie", getmovie_command, filters=filters.User(ADMINS)))
+    
+    # Your other handlers...
