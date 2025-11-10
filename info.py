@@ -192,8 +192,24 @@ else:
     FILE_DB_URI = F_DB_URI        # This Db Is For File Data Store
     SEC_FILE_DB_URI = S_DB_URI    # This Db is for File Data Store When First Db Is Going To Be Full.
 
+# ----------------------------------------------------------------------------------------------------
+# Temp class for storing temporary data
+class Temp:
+    def __init__(self):
+        self.MOVIE_SEARCH = {}  # For storing movie search results for pagination
+        self.U_NAME = None
+        self.B_NAME = None
+        self.SHORT = {}
+        self.GETALL = {}
+        # Add other temp variables as needed
+
+# Initialize temp object
+temp = Temp()
+
+
 
 # Don't Remove Credit @VJ_Botz
 # Subscribe YouTube Channel For Amazing Bot @Tech_VJ
 # Ask Doubt on telegram @KingVJ01
+
 
