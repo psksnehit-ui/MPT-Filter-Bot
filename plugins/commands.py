@@ -1534,11 +1534,11 @@ def group_movies_by_base_name(movies):
         movie_groups[base_name]["files"].extend(movie["files"])
         movie_groups[base_name]["original_names"].append(original_name)
     
-    # Convert to list and sort
-    grouped_movies = list(movie_groups.values())
-    grouped_movies.sort(key=lambda x: x["base_name"])
+    # Convert to list and sort - FIXED: Use built-in list() directly
+    grouped_movies_list = list(movie_groups.values())
+    grouped_movies_list.sort(key=lambda x: x["base_name"])
     
-    return grouped_movies
+    return grouped_movies_list
 
 def extract_base_movie_name(file_name):
     """Extract base movie name by removing quality, resolution, audio details"""
