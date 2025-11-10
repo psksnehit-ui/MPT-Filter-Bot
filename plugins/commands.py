@@ -1766,9 +1766,9 @@ def format_movie_results(results, bot_username, current_page, total_pages, query
         return "**No results found.**"
     
     message_parts = []
-    message_parts.append(f"🎬 **Search Results for '{query}'**")
-    message_parts.append(f"📄 **Page {current_page} of {total_pages}**")
-    message_parts.append(f"📊 **Showing {len(results)} results**\n")
+    message_parts.append(f"**🎬 Search Results for '{query}'**")
+    message_parts.append(f"**📄 Page {current_page} of {total_pages}**")
+    message_parts.append(f"**📊 Showing {len(results)} results**\n")
     
     for i, result in enumerate(results, 1):
         # Get file name (prefer file_name, fall back to caption)
@@ -1780,8 +1780,18 @@ def format_movie_results(results, bot_username, current_page, total_pages, query
             from html import unescape
             caption = unescape(result['caption'])
             caption = re.sub(r'<.*?>', '', caption).strip()
+            # Remove @MnTLinkss and other unwanted text
+            caption = re.sub(r'@\w+', '', caption).strip()
+            caption = re.sub(r'Join_', '', caption).strip()
             if caption and len(caption) > 10:  # Only use if meaningful
                 file_name = caption
+        
+        # Clean file name - remove unwanted symbols and text
+        file_name = re.sub(r'@\w+', '', file_name)  # Remove @tags
+        file_name = re.sub(r'Join_', '', file_name)  # Remove Join_
+        file_name = re.sub(r'--', '', file_name)  # Remove --
+        file_name = re.sub(r'_\s*$', '', file_name)  # Remove trailing _
+        file_name = file_name.strip()
         
         # Get file size in readable format
         file_size = get_size(result.get('file_size', 0))
@@ -1793,16 +1803,15 @@ def format_movie_results(results, bot_username, current_page, total_pages, query
         # Calculate global result number
         result_number = ((current_page - 1) * 10) + i
         
-        # Format the entry (exactly as requested)
+        # Format the entry with bold text and italic file name
         entry = (
-            f"**{result_number}.** 🎬 {file_name}\n"
-            f"     📦 {file_size}\n"
-            f"     🔗 `{direct_link}`\n"
+            f"**<b><i>{file_name}</i></b>**\n"
+            f"**{file_size} - {direct_link}**\n"
         )
         
         message_parts.append(entry)
     
-    message_parts.append(f"\n**💡 Tip:** Use the buttons below to navigate through pages!")
+    message_parts.append(f"\n**💡 Tip: Use the buttons below to navigate through pages!**")
     
     return "\n".join(message_parts)
 
@@ -1877,3 +1886,4 @@ def get_size(size):
         return f"{size:.2f} {power_labels[n]}"
     except:
         return "Unknown"
+
