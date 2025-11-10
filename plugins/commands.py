@@ -696,84 +696,6 @@ async def start(client, message):
     await msg.delete()
     await k.edit_text("<b>Your File/Video is successfully deleted!!!\n\nClick below button to get your deleted file 👇</b>",reply_markup=InlineKeyboardMarkup(btn))
     return   
-# ------------------------------------------------------------------------------------------
-
-
-from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from info import ADMINS
-from utils import get_size
-from database.ia_filterdb import get_movies_by_name
-
-# Temporary storage for selections
-temp = {}
-
-@Client.on_message(filters.command("getmovie") & filters.user(ADMINS))
-async def get_movie_list(bot, message):
-    if len(message.command) < 2:
-        return await message.reply("Usage:\n<code>/getmovie &lt;movie name&gt;</code>", quote=True)
-
-    query = message.text.split(" ", 1)[1].strip()
-
-    # Fetch grouped movies from DB
-    movies = await get_movies_by_name(query)
-    if not movies:
-        return await message.reply("❌ No files found matching that name.")
-
-    # Build list text & inline buttons
-    buttons = []
-    text_list = ""
-    for i, (movie_name, files) in enumerate(movies.items(), 1):
-        text_list += f"{i}️⃣ {movie_name} - {len(files)} files\n"
-        buttons.append([InlineKeyboardButton(f"{i}️⃣ {movie_name}", callback_data=f"getmovie_{i}")])
-
-    # Save mapping in temporary storage
-    temp[message.from_user.id] = {"movies": movies}
-
-    # Send numbered list with buttons
-    await message.reply_text(
-        f"🔍 Found movies for: <b>{query}</b>\n\n{text_list}",
-        reply_markup=InlineKeyboardMarkup(buttons),
-        parse_mode="html"
-    )
-
-
-@Client.on_callback_query()
-async def movie_callback(bot, query):
-    if not query.data.startswith("getmovie_"):
-        return
-
-    user_id = query.from_user.id
-    if user_id not in temp:
-        return await query.answer("❌ Session expired. Send /getmovie again.", show_alert=True)
-
-    movies = temp[user_id]["movies"]
-    index = int(query.data.split("_")[1]) - 1
-    movie_name = list(movies.keys())[index]
-    files = movies[movie_name]
-
-    # Prepare and send files in batches
-    batch_text = ""
-    for file in files:
-        file_name = file.get("file_name", "Unknown")
-        file_size = get_size(int(file.get("file_size", 0)))
-        file_id = file.get("file_id")
-        file_link = f"https://t.me/{bot.me.username}?start=file_{file_id}"
-
-        line = f"🎬 <b>{file_name}</b>\n{file_size} - {file_link}\n\n"
-
-        if len(batch_text) + len(line) > 4000:
-            await query.message.reply_text(batch_text, disable_web_page_preview=True, parse_mode="html")
-            batch_text = line
-        else:
-            batch_text += line
-
-    if batch_text:
-        await query.message.reply_text(batch_text, disable_web_page_preview=True, parse_mode="html")
-
-    await query.answer()  # remove loading state
-
-# ---------------------------------------------------------------------------------------------
 
 @Client.on_message(filters.command('channel') & filters.user(ADMINS))
 async def channel_info(bot, message):
@@ -1583,6 +1505,75 @@ async def purge_requests(client, message):
             parse_mode=enums.ParseMode.MARKDOWN,
             disable_web_page_preview=True
         )
+# ------------------------------------------------------------------------------------------
+
+@Client.on_message(filters.command("getmovie") & filters.user(ADMINS))
+async def get_movie_list(bot, message):
+    if len(message.command) < 2:
+        return await message.reply("Usage:\n<code>/getmovie &lt;movie name&gt;</code>", quote=True)
+
+    query = message.text.split(" ", 1)[1].strip()
+
+    # Fetch grouped movies from DB
+    movies = await get_movies_by_name(query)
+    if not movies:
+        return await message.reply("❌ No files found matching that name.")
+
+    # Build list text & inline buttons
+    buttons = []
+    text_list = ""
+    for i, (movie_name, files) in enumerate(movies.items(), 1):
+        text_list += f"{i}️⃣ {movie_name} - {len(files)} files\n"
+        buttons.append([InlineKeyboardButton(f"{i}️⃣ {movie_name}", callback_data=f"getmovie_{i}")])
+
+    # Save mapping in temporary storage
+    temp[message.from_user.id] = {"movies": movies}
+
+    # Send numbered list with buttons
+    await message.reply_text(
+        f"🔍 Found movies for: <b>{query}</b>\n\n{text_list}",
+        reply_markup=InlineKeyboardMarkup(buttons),
+        parse_mode="html"
+    )
+
+
+@Client.on_callback_query()
+async def movie_callback(bot, query):
+    if not query.data.startswith("getmovie_"):
+        return
+
+    user_id = query.from_user.id
+    if user_id not in temp:
+        return await query.answer("❌ Session expired. Send /getmovie again.", show_alert=True)
+
+    movies = temp[user_id]["movies"]
+    index = int(query.data.split("_")[1]) - 1
+    movie_name = list(movies.keys())[index]
+    files = movies[movie_name]
+
+    # Prepare and send files in batches
+    batch_text = ""
+    for file in files:
+        file_name = file.get("file_name", "Unknown")
+        file_size = get_size(int(file.get("file_size", 0)))
+        file_id = file.get("file_id")
+        file_link = f"https://t.me/{bot.me.username}?start=file_{file_id}"
+
+        line = f"🎬 <b>{file_name}</b>\n{file_size} - {file_link}\n\n"
+
+        if len(batch_text) + len(line) > 4000:
+            await query.message.reply_text(batch_text, disable_web_page_preview=True, parse_mode="html")
+            batch_text = line
+        else:
+            batch_text += line
+
+    if batch_text:
+        await query.message.reply_text(batch_text, disable_web_page_preview=True, parse_mode="html")
+
+    await query.answer()  # remove loading state
+
+# ---------------------------------------------------------------------------------------------
+
 
 
 
