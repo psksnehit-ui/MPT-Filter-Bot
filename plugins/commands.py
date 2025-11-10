@@ -1507,6 +1507,14 @@ async def purge_requests(client, message):
 
 
 # ----------------------------------------------------------------------------------------------------
+import os
+import asyncio
+import re
+from pyrogram import Client, filters
+from pyrogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
+from pyrogram.enums import ParseMode
+from database.ia_filterdb import get_movies_by_name, col, sec_col
+from info import ADMINS
 
 # Temporary storage for command states
 movie_search_states = {}
@@ -1534,8 +1542,12 @@ def group_movies_by_base_name(movies):
         movie_groups[base_name]["files"].extend(movie["files"])
         movie_groups[base_name]["original_names"].append(original_name)
     
-    # Convert to list and sort - FIXED: Use built-in list() directly
-    grouped_movies_list = list(movie_groups.values())
+    # Convert to list without using list() function - WORKAROUND
+    grouped_movies_list = []
+    for movie_group in movie_groups.values():
+        grouped_movies_list.append(movie_group)
+    
+    # Sort the list
     grouped_movies_list.sort(key=lambda x: x["base_name"])
     
     return grouped_movies_list
@@ -1938,10 +1950,10 @@ async def cleanup_expired_states():
     """Clean up expired search states"""
     while True:
         current_time = asyncio.get_event_loop().time()
-        expired_keys = [
-            key for key, state in movie_search_states.items()
-            if current_time - state["timestamp"] > 300  # 5 minutes expiration
-        ]
+        expired_keys = []
+        for key, state in movie_search_states.items():
+            if current_time - state["timestamp"] > 300:  # 5 minutes expiration
+                expired_keys.append(key)
         for key in expired_keys:
             del movie_search_states[key]
         await asyncio.sleep(60)  # Run every minute
