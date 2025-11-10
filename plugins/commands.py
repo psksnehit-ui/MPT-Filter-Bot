@@ -1509,6 +1509,146 @@ async def purge_requests(client, message):
 # ----------------------------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------------------------
 # GetMovie Command for Admins
+# @Client.on_message(filters.command("getmovie") & filters.user(ADMINS))
+# async def getmovie_command(client, message):
+#     """Handle /getmovie command to search for movie files - Admin Only"""
+#     try:
+#         # Check if user provided a movie name
+#         if len(message.command) < 2:
+#             await message.reply_text(
+#                 "❌ **Please provide a movie name.**\n\n"
+#                 "**Usage:** `/getmovie <movie name>`\n"
+#                 "**Example:** `/getmovie The Fantastic Four`"
+#             )
+#             return
+
+#         # Get the movie name from command arguments
+#         movie_name = " ".join(message.command[1:])
+        
+#         # Log the command usage
+#         logger.info(f"Admin {message.from_user.id} searched for movie: {movie_name}")
+
+#         # Show searching message
+#         search_msg = await message.reply_text(f"🔍 **Searching for '{movie_name}'...**")
+        
+#         # Search for movie files (sync call since we're using PyMongo)
+#         media = Media()
+#         results = media.search_movie_files(movie_name, limit=10)
+        
+#         if not results:
+#             await search_msg.edit_text(f"❌ **No files found for '{movie_name}'**")
+#             return
+
+#         # Format the results
+#         bot_username = (await client.get_me()).username
+#         response = format_movie_results(results, bot_username)
+        
+#         # Send the response
+#         await send_long_message(client, search_msg, response)
+
+#     except Exception as e:
+#         logger.error(f"Error in getmovie command: {e}", exc_info=True)
+#         await message.reply_text(
+#             "❌ **An error occurred while searching. Please try again later.**"
+#         )
+
+# def format_movie_results(results, bot_username):
+#     """Format movie results into a readable message"""
+#     if not results:
+#         return "**No results found.**"
+    
+#     message_parts = []
+#     message_parts.append(f"🎬 **Search Results ({len(results)} found):**\n\n")
+    
+#     for i, result in enumerate(results, 1):
+#         # Get file name (prefer file_name, fall back to caption)
+#         file_name = result.get('file_name', 'Unknown')
+        
+#         # Clean caption if available for better display
+#         if result.get('caption'):
+#             import re
+#             from html import unescape
+#             caption = unescape(result['caption'])
+#             caption = re.sub(r'<.*?>', '', caption).strip()
+#             if caption and len(caption) > 10:  # Only use if meaningful
+#                 file_name = caption
+        
+#         # Get file size in readable format
+#         file_size = get_size(result.get('file_size', 0))
+        
+#         # Create direct link
+#         file_id = result.get('file_id', '')
+#         direct_link = f"https://t.me/{bot_username}?start=file_{file_id}"
+        
+#         # Format the entry (exactly as requested)
+#         entry = (
+#             f"🎬 {file_name}\n"
+#             f"📦 {file_size}\n"
+#             f"🔗 {direct_link}\n"
+#         )
+        
+#         message_parts.append(entry)
+#         if i < len(results):  # Add spacing between entries except for the last one
+#             message_parts.append("")
+    
+#     return "\n".join(message_parts)
+
+# async def send_long_message(client, message_obj, text, max_length=4096):
+#     """Send long messages by splitting them if they exceed Telegram's limit"""
+#     if len(text) <= max_length:
+#         await message_obj.edit_text(text)
+#         return
+    
+#     # Split the message into chunks
+#     messages = []
+#     current_message = ""
+    
+#     for line in text.split('\n'):
+#         if len(current_message + line + '\n') > max_length:
+#             if current_message:
+#                 messages.append(current_message.strip())
+#                 current_message = line + '\n'
+#             else:
+#                 # Single line is too long, split it
+#                 chunks = [line[i:i+max_length] for i in range(0, len(line), max_length)]
+#                 messages.extend(chunks[:-1])
+#                 current_message = chunks[-1] + '\n'
+#         else:
+#             current_message += line + '\n'
+    
+#     if current_message.strip():
+#         messages.append(current_message.strip())
+    
+#     # Send all message chunks (edit first message, send others as new)
+#     for i, msg in enumerate(messages):
+#         if i == 0:
+#             await message_obj.edit_text(msg)
+#         else:
+#             await message_obj.reply_text(msg)
+
+# def get_size(size):
+#     """Convert file size to human readable format"""
+#     if not size:
+#         return "0 B"
+    
+#     try:
+#         size = int(size)
+#         power = 2**10
+#         n = 0
+#         power_labels = {0: 'B', 1: 'KB', 2: 'MB', 3: 'GB', 4: 'TB'}
+#         while size > power:
+#             size /= power
+#             n += 1
+#         return f"{size:.2f} {power_labels[n]}"
+#     except:
+#         return "Unknown"
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+
+
+# ----------------------------------------------------------------------------------------------------
+# GetMovie Command for Admins with Pagination
 @Client.on_message(filters.command("getmovie") & filters.user(ADMINS))
 async def getmovie_command(client, message):
     """Handle /getmovie command to search for movie files - Admin Only"""
@@ -1531,20 +1671,25 @@ async def getmovie_command(client, message):
         # Show searching message
         search_msg = await message.reply_text(f"🔍 **Searching for '{movie_name}'...**")
         
-        # Search for movie files (sync call since we're using PyMongo)
+        # Search for movie files (get all results first)
         media = Media()
-        results = media.search_movie_files(movie_name, limit=10)
+        all_results = media.search_movie_files(movie_name, limit=100)  # Get more results for pagination
         
-        if not results:
+        if not all_results:
             await search_msg.edit_text(f"❌ **No files found for '{movie_name}'**")
             return
 
-        # Format the results
-        bot_username = (await client.get_me()).username
-        response = format_movie_results(results, bot_username)
-        
-        # Send the response
-        await send_long_message(client, search_msg, response)
+        # Store results in temp for pagination
+        user_id = message.from_user.id
+        temp.MOVIE_SEARCH[user_id] = {
+            'query': movie_name,
+            'results': all_results,
+            'page': 1,
+            'total_pages': (len(all_results) + 9) // 10  # Calculate total pages (ceil division)
+        }
+
+        # Show first page
+        await show_movie_page(client, search_msg, user_id, 1)
 
     except Exception as e:
         logger.error(f"Error in getmovie command: {e}", exc_info=True)
@@ -1552,13 +1697,67 @@ async def getmovie_command(client, message):
             "❌ **An error occurred while searching. Please try again later.**"
         )
 
-def format_movie_results(results, bot_username):
-    """Format movie results into a readable message"""
+async def show_movie_page(client, message_obj, user_id, page):
+    """Show a specific page of movie results"""
+    try:
+        user_data = temp.MOVIE_SEARCH.get(user_id)
+        if not user_data:
+            await message_obj.edit_text("❌ **Search session expired. Please search again.**")
+            return
+
+        results = user_data['results']
+        query = user_data['query']
+        total_pages = user_data['total_pages']
+        
+        # Validate page number
+        if page < 1 or page > total_pages:
+            await message_obj.edit_text("❌ **Invalid page number.**")
+            return
+
+        # Calculate start and end indices for current page
+        start_idx = (page - 1) * 10
+        end_idx = start_idx + 10
+        page_results = results[start_idx:end_idx]
+
+        # Format the results for current page
+        bot_username = (await client.get_me()).username
+        response = format_movie_results(page_results, bot_username, page, total_pages, query)
+        
+        # Create navigation buttons
+        buttons = []
+        if total_pages > 1:
+            if page > 1:
+                buttons.append(InlineKeyboardButton("⬅️ Previous", callback_data=f"movie_prev_{page}"))
+            if page < total_pages:
+                buttons.append(InlineKeyboardButton("Next ➡️", callback_data=f"movie_next_{page}"))
+        
+        if buttons:
+            # Add refresh button in second row
+            nav_buttons = [buttons]
+            nav_buttons.append([InlineKeyboardButton("🔄 Refresh", callback_data=f"movie_refresh_{page}")])
+            reply_markup = InlineKeyboardMarkup(nav_buttons)
+        else:
+            reply_markup = None
+
+        # Update message with current page
+        await message_obj.edit_text(response, reply_markup=reply_markup)
+
+        # Update current page in user data
+        temp.MOVIE_SEARCH[user_id]['page'] = page
+
+    except Exception as e:
+        logger.error(f"Error showing movie page: {e}", exc_info=True)
+        await message_obj.edit_text("❌ **Error displaying results.**")
+
+def format_movie_results(results, bot_username, current_page, total_pages, query):
+    """Format movie results into a readable message with pagination info"""
     if not results:
         return "**No results found.**"
     
     message_parts = []
-    message_parts.append(f"🎬 **Search Results ({len(results)} found):**\n\n")
+    message_parts.append(f"🎬 **Search Results for '{query}'**")
+    message_parts.append(f"📄 **Page {current_page} of {total_pages}**")
+    message_parts.append(f"📊 **Showing {len(results)} results**\n")
     
     for i, result in enumerate(results, 1):
         # Get file name (prefer file_name, fall back to caption)
@@ -1580,51 +1779,48 @@ def format_movie_results(results, bot_username):
         file_id = result.get('file_id', '')
         direct_link = f"https://t.me/{bot_username}?start=file_{file_id}"
         
+        # Calculate global result number
+        result_number = ((current_page - 1) * 10) + i
+        
         # Format the entry (exactly as requested)
         entry = (
-            f"🎬 {file_name}\n"
-            f"📦 {file_size}\n"
-            f"🔗 {direct_link}\n"
+            f"**{result_number}.** 🎬 {file_name}\n"
+            f"     📦 {file_size}\n"
+            f"     🔗 `{direct_link}`\n"
         )
         
         message_parts.append(entry)
-        if i < len(results):  # Add spacing between entries except for the last one
-            message_parts.append("")
+    
+    message_parts.append(f"\n**💡 Tip:** Use the buttons below to navigate through pages!")
     
     return "\n".join(message_parts)
 
-async def send_long_message(client, message_obj, text, max_length=4096):
-    """Send long messages by splitting them if they exceed Telegram's limit"""
-    if len(text) <= max_length:
-        await message_obj.edit_text(text)
-        return
-    
-    # Split the message into chunks
-    messages = []
-    current_message = ""
-    
-    for line in text.split('\n'):
-        if len(current_message + line + '\n') > max_length:
-            if current_message:
-                messages.append(current_message.strip())
-                current_message = line + '\n'
-            else:
-                # Single line is too long, split it
-                chunks = [line[i:i+max_length] for i in range(0, len(line), max_length)]
-                messages.extend(chunks[:-1])
-                current_message = chunks[-1] + '\n'
-        else:
-            current_message += line + '\n'
-    
-    if current_message.strip():
-        messages.append(current_message.strip())
-    
-    # Send all message chunks (edit first message, send others as new)
-    for i, msg in enumerate(messages):
-        if i == 0:
-            await message_obj.edit_text(msg)
-        else:
-            await message_obj.reply_text(msg)
+# Callback query handler for pagination
+@Client.on_callback_query(filters.regex(r"^movie_"))
+async def movie_pagination_callback(client, callback_query):
+    """Handle movie pagination callbacks"""
+    try:
+        data = callback_query.data
+        user_id = callback_query.from_user.id
+        
+        if data.startswith("movie_prev_"):
+            current_page = int(data.split("_")[2])
+            await callback_query.answer()
+            await show_movie_page(client, callback_query.message, user_id, current_page - 1)
+            
+        elif data.startswith("movie_next_"):
+            current_page = int(data.split("_")[2])
+            await callback_query.answer()
+            await show_movie_page(client, callback_query.message, user_id, current_page + 1)
+            
+        elif data.startswith("movie_refresh_"):
+            current_page = int(data.split("_")[2])
+            await callback_query.answer("Refreshing...")
+            await show_movie_page(client, callback_query.message, user_id, current_page)
+            
+    except Exception as e:
+        logger.error(f"Error in movie pagination callback: {e}", exc_info=True)
+        await callback_query.answer("Error occurred!", show_alert=True)
 
 def get_size(size):
     """Convert file size to human readable format"""
