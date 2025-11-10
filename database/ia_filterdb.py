@@ -236,3 +236,45 @@ def unpack_new_file_id(new_file_id):
     )
     file_ref = encode_file_ref(decoded.file_reference)
     return file_id, file_ref
+
+# ------------------ Admin Movie Search ------------------
+async def get_movies_by_name(query: str):
+    """
+    Search for files matching the query across primary and secondary DBs.
+    Returns a dictionary: { base_movie_name: [file_doc, ...] }
+    """
+    query = query.strip()
+    if not query:
+        return {}
+
+    # Build regex pattern (case-insensitive)
+    if ' ' not in query:
+        raw_pattern = r'(\b|[\.\+\-_])' + re.escape(query) + r'(\b|[\.\+\-_])'
+    else:
+        raw_pattern = '.*'.join(map(re.escape, query.split()))
+    regex = re.compile(raw_pattern, flags=re.IGNORECASE)
+
+    # Build MongoDB filter
+    if USE_CAPTION_FILTER:
+        filter_ = {'$or': [{'file_name': regex}, {'caption': regex}]}
+    else:
+        filter_ = {'file_name': regex}
+
+    # Search main DB
+    files_main = list(col.find(filter_).sort('$natural', -1))
+
+    # Search secondary DB if MULTIPLE_DATABASE enabled
+    files_sec = list(sec_col.find(filter_).sort('$natural', -1)) if MULTIPLE_DATABASE else []
+
+    all_files = files_main + files_sec
+
+    # Group files by base movie name (before first '(')
+    movies = {}
+    for file in all_files:
+        name = file.get("file_name", "Unknown").split("(")[0].strip()
+        if name not in movies:
+            movies[name] = []
+        movies[name].append(file)
+
+    return movies
+
