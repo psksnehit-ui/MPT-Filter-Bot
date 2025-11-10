@@ -9,7 +9,7 @@ from pyrogram.errors import ChatAdminRequired, FloodWait
 from pyrogram.types import *
 from pyrogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
 from pyrogram.enums import ParseMode
-from database.ia_filterdb import col, sec_col, get_file_details, unpack_new_file_id, get_bad_files, get_movies_by_name
+from database.ia_filterdb import col, sec_col, get_file_details, unpack_new_file_id, get_bad_files, get_movies_by_name, Media
 from database.users_chats_db import db, delete_all_referal_users, get_referal_users_count, get_referal_all_users, referal_add_user
 from database.join_reqs import JoinReqs
 from info import CLONE_MODE, OWNER_LNK, REACTIONS, CHANNELS, REQUEST_TO_JOIN_MODE, TRY_AGAIN_BTN, ADMINS, SHORTLINK_MODE, PREMIUM_AND_REFERAL_MODE, STREAM_MODE, AUTH_CHANNEL, REFERAL_PREMEIUM_TIME, REFERAL_COUNT, PAYMENT_TEXT, PAYMENT_QR, LOG_CHANNEL, PICS, BATCH_FILE_CAPTION, CUSTOM_FILE_CAPTION, PROTECT_CONTENT, CHNL_LNK, GRP_LNK, REQST_CHANNEL, SUPPORT_CHAT_ID, SUPPORT_CHAT, MAX_B_TN, VERIFY, SHORTLINK_API, SHORTLINK_URL, TUTORIAL, VERIFY_TUTORIAL, IS_TUTORIAL, URL
@@ -1513,6 +1513,134 @@ from database.ia_filterdb import Media
 from utils import get_size
 import math
 
+from pyrogram import Client, filters
+from pyrogram.types import Message
+from database.ia_filterdb import Media, get_file_details, unpack_new_file_id, get_bad_files
+from database.users_chats_db import db
+from info import ADMINS
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Add the getmovie command
+@Client.on_message(filters.command("getmovie") & filters.user(ADMINS))
+async def getmovie_command(client, message: Message):
+    """Handle /getmovie command to search for movie files"""
+    try:
+        # Check if user provided a movie name
+        if len(message.command) < 2:
+            await message.reply_text(
+                "❌ **Please provide a movie name.**\n\n"
+                "**Usage:** `/getmovie <movie name>`\n"
+                "**Example:** `/getmovie The Fantastic Four`"
+            )
+            return
+
+        # Get the movie name from command arguments
+        movie_name = " ".join(message.command[1:])
+        
+        # Log the command usage
+        logger.info(f"User {message.from_user.id} searched for movie: {movie_name}")
+
+        # Search for movie files
+        media = Media()
+        results = await media.search_movie_files(movie_name, limit=10)
+        
+        if not results:
+            await message.reply_text(
+                f"❌ **No files found for '{movie_name}'**"
+            )
+            return
+
+        # Format the results
+        response = await format_movie_results(results, client.me.username)
+        
+        # Send the response
+        await send_long_message(client, message, response)
+
+    except Exception as e:
+        logger.error(f"Error in getmovie command: {e}")
+        await message.reply_text(
+            "❌ **An error occurred while searching. Please try again later.**"
+        )
+
+async def format_movie_results(results, bot_username):
+    """Format movie results into a readable message"""
+    if not results:
+        return "**No results found.**"
+    
+    message_parts = []
+    message_parts.append(f"🎬 **Search Results ({len(results)} found):**\n")
+    
+    for i, result in enumerate(results, 1):
+        # Get file name (prefer caption, fall back to file_name)
+        file_name = result.get('caption') or result.get('file_name', 'Unknown')
+        
+        # Get file size in readable format
+        file_size = get_size(result.get('file_size', 0))
+        
+        # Create direct link
+        file_id = result.get('file_id', '')
+        direct_link = f"https://t.me/{bot_username}?start=file_{file_id}"
+        
+        # Format the entry
+        entry = (
+            f"🎬 **{file_name}**\n"
+            f"📦 **Size:** {file_size}\n"
+            f"🔗 **Link:** `{direct_link}`\n"
+        )
+        
+        message_parts.append(entry)
+    
+    return "\n".join(message_parts)
+
+async def send_long_message(client, message, text, max_length=4096):
+    """Send long messages by splitting them if they exceed Telegram's limit"""
+    if len(text) <= max_length:
+        await message.reply_text(text)
+        return
+    
+    # Split the message into chunks
+    messages = []
+    current_message = ""
+    
+    for line in text.split('\n'):
+        if len(current_message + line + '\n') > max_length:
+            if current_message:
+                messages.append(current_message.strip())
+                current_message = line + '\n'
+            else:
+                # Single line is too long, split it
+                chunks = [line[i:i+max_length] for i in range(0, len(line), max_length)]
+                messages.extend(chunks[:-1])
+                current_message = chunks[-1] + '\n'
+        else:
+            current_message += line + '\n'
+    
+    if current_message.strip():
+        messages.append(current_message.strip())
+    
+    # Send all message chunks
+    for msg in messages:
+        await message.reply_text(msg)
+
+def get_size(size):
+    """Convert file size to human readable format"""
+    if not size:
+        return "0 B"
+    
+    try:
+        size = int(size)
+        power = 2**10
+        n = 0
+        power_labels = {0: 'B', 1: 'KB', 2: 'MB', 3: 'GB', 4: 'TB'}
+        while size > power:
+            size /= power
+            n += 1
+        return f"{size:.2f} {power_labels[n]}"
+    except:
+        return "Unknown"
+
 async def getmovie_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /getmovie command to search for movie files"""
     try:
@@ -1620,3 +1748,4 @@ def add_handlers(application):
     application.add_handler(CommandHandler("getmovie", getmovie_command, filters=filters.User(ADMINS)))
     
     # Your other handlers...
+
