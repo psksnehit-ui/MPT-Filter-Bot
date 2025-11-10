@@ -27,7 +27,7 @@ async def save_group(bot, message):
         if message.chat.id in temp.BANNED_CHATS:
             # Inspired from a boat of a banana tree
             buttons = [[
-                InlineKeyboardButton('Support', url=f'https://t.me/{SUPPORT_CHAT}')
+                InlineKeyboardButton('🛠️ Support Group', url=f'https://t.me/{SUPPORT_CHAT}')
             ]]
             reply_markup=InlineKeyboardMarkup(buttons)
             k = await message.reply(
@@ -41,10 +41,10 @@ async def save_group(bot, message):
             await bot.leave_chat(message.chat.id)
             return
         buttons = [[
-            InlineKeyboardButton('Sᴜᴘᴘᴏʀᴛ Gʀᴏᴜᴘ', url=f'https://t.me/{SUPPORT_CHAT}'),
-            InlineKeyboardButton('Uᴘᴅᴀᴛᴇs Cʜᴀɴɴᴇʟ', url=CHNL_LNK)
+            InlineKeyboardButton('🛠️ Support Group', url=f'https://t.me/{SUPPORT_CHAT}'),
+            InlineKeyboardButton('📢 Updates Channel', url=CHNL_LNK)
         ],[
-            InlineKeyboardButton("Bᴏᴛ Oᴡɴᴇʀ", url=OWNER_LNK)
+            InlineKeyboardButton("👨‍💼 𝓑𝓸𝓽 𝓞𝔀𝓷𝓮𝓻 👨‍💼", url=OWNER_LNK)
         ]]
         reply_markup=InlineKeyboardMarkup(buttons)
         await message.reply_text(
@@ -61,10 +61,10 @@ async def save_group(bot, message):
                     except:
                         pass
                 button = [[
-                    InlineKeyboardButton('Sᴜᴘᴘᴏʀᴛ Gʀᴏᴜᴘ', url=f'https://t.me/{SUPPORT_CHAT}'),
-                    InlineKeyboardButton('Uᴘᴅᴀᴛᴇs Cʜᴀɴɴᴇʟ', url=CHNL_LNK)
+                    InlineKeyboardButton('🛠️ Support Group', url=f'https://t.me/{SUPPORT_CHAT}'),
+                    InlineKeyboardButton('📢 Updates Channel', url=CHNL_LNK)
                 ],[
-                    InlineKeyboardButton("Bᴏᴛ Oᴡɴᴇʀ", url=OWNER_LNK)
+                    InlineKeyboardButton("👨‍💼 𝓑𝓸𝓽 𝓞𝔀𝓷𝓮𝓻 👨‍💼", url=OWNER_LNK)
                 ]]
                 temp.MELCOW['welcome'] = await message.reply_text(
                     text=(script.MELCOW_ENG.format(u.mention, message.chat.title)),
@@ -86,10 +86,10 @@ async def leave_a_chat(bot, message):
         chat = chat
     try:
         buttons = [[
-            InlineKeyboardButton('Support Group',url=f'https://t.me/{SUPPORT_CHAT}'),
-            InlineKeyboardButton("Bᴏᴛ Oᴡɴᴇʀ", url=OWNER_LNK)
+            InlineKeyboardButton('🛠️ Support Group',url=f'https://t.me/{SUPPORT_CHAT}'),
+            InlineKeyboardButton("👨‍💼 𝓑𝓸𝓽 𝓞𝔀𝓷𝓮𝓻 👨‍💼", url=OWNER_LNK)
         ],[
-            InlineKeyboardButton('Use Me Here', url=f'https://t.me/{SUPPORT_CHAT}')
+            InlineKeyboardButton('👇 Use Me Here', url=f'https://t.me/{SUPPORT_CHAT}')
         ]]
         reply_markup=InlineKeyboardMarkup(buttons)
         await bot.send_message(
@@ -128,7 +128,7 @@ async def disable_chat(bot, message):
     await message.reply('Chat Successfully Disabled')
     try:
         buttons = [[
-            InlineKeyboardButton('Support', url=f'https://t.me/{SUPPORT_CHAT}')
+            InlineKeyboardButton('🛠️ Support Group', url=f'https://t.me/{SUPPORT_CHAT}')
         ]]
         reply_markup=InlineKeyboardMarkup(buttons)
         await bot.send_message(
@@ -296,3 +296,4 @@ async def list_chats(bot, message):
         with open('chats.txt', 'w+') as outfile:
             outfile.write(out)
         await message.reply_document('chats.txt', caption="List Of Chats")
+
