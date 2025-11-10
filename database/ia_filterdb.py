@@ -242,13 +242,14 @@ async def get_movies_by_name(query, limit=10):
     """Search for movies by name (compatibility function)"""
     return await Media().search_movie_files(query, limit)
 
+# ------------------ Admin Movie Search ------------------
 class Media:
     def __init__(self):
-        self.collection = col  # Your main collection
-        self.sec_collection = sec_col  # Your secondary collection if any
+        self.collection = col
+        self.sec_collection = sec_col
 
-    async def search_movie_files(self, query, limit=10):
-        """Search for movie files by name or caption"""
+    def search_movie_files(self, query, limit=10):
+        """Search for movie files by name or caption - SYNC version for PyMongo"""
         try:
             # Create a case-insensitive regex pattern for searching
             pattern = {"$regex": query, "$options": "i"}
@@ -261,11 +262,27 @@ class Media:
                 ]
             }
             
-            # Find documents matching the query
-            cursor = self.collection.find(filter_query).limit(limit)
-            results = await cursor.to_list(length=limit)
+            # Find documents matching the query from both collections
+            results = []
             
-            return results
+            # Search in primary collection
+            primary_results = list(self.collection.find(filter_query).limit(limit))
+            results.extend(primary_results)
+            
+            # If we need more results and have multiple databases, search secondary
+            if MULTIPLE_DATABASE and len(results) < limit:
+                remaining = limit - len(results)
+                secondary_results = list(self.sec_collection.find(filter_query).limit(remaining))
+                results.extend(secondary_results)
+            
+            return results[:limit]  # Ensure we don't exceed limit
+            
         except Exception as e:
             logger.error(f"Error searching movie files: {e}")
             return []
+
+# Compatibility function
+def get_movies_by_name(query, limit=10):
+    """Search for movies by name - SYNC version"""
+    media = Media()
+    return media.search_movie_files(query, limit)
