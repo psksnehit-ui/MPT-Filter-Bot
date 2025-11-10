@@ -7,16 +7,17 @@ from Script import script
 from pyrogram import Client, filters, enums
 from pyrogram.errors import ChatAdminRequired, FloodWait
 from pyrogram.types import *
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from database.ia_filterdb import col, sec_col, get_file_details, unpack_new_file_id, get_bad_files
 from database.users_chats_db import db, delete_all_referal_users, get_referal_users_count, get_referal_all_users, referal_add_user
 from database.join_reqs import JoinReqs
 from info import CLONE_MODE, OWNER_LNK, REACTIONS, CHANNELS, REQUEST_TO_JOIN_MODE, TRY_AGAIN_BTN, ADMINS, SHORTLINK_MODE, PREMIUM_AND_REFERAL_MODE, STREAM_MODE, AUTH_CHANNEL, REFERAL_PREMEIUM_TIME, REFERAL_COUNT, PAYMENT_TEXT, PAYMENT_QR, LOG_CHANNEL, PICS, BATCH_FILE_CAPTION, CUSTOM_FILE_CAPTION, PROTECT_CONTENT, CHNL_LNK, GRP_LNK, REQST_CHANNEL, SUPPORT_CHAT_ID, SUPPORT_CHAT, MAX_B_TN, VERIFY, SHORTLINK_API, SHORTLINK_URL, TUTORIAL, VERIFY_TUTORIAL, IS_TUTORIAL, URL
-from utils import get_settings, pub_is_subscribed, get_size, is_subscribed, save_group_settings, temp, verify_user, check_token, check_verification, get_token, get_shortlink, get_tutorial, get_seconds
+from utils import get_settings, pub_is_subscribed, get_size, is_subscribed, save_group_settings, temp, verify_user, check_token, check_verification, get_token, get_shortlink, get_tutorial, get_seconds, humanbytes 
 from database.connections_mdb import active_connection
 from urllib.parse import quote_plus
 from TechVJ.util.file_properties import get_name, get_hash, get_media_file_size
 logger = logging.getLogger(__name__)
-
+temp = {}
 BATCH_FILES = {}
 join_db = JoinReqs
 
@@ -695,46 +696,75 @@ async def start(client, message):
     return   
 
 @Client.on_message(filters.command("getmovie") & filters.user(ADMINS))
-async def get_movie_files(bot, message):
+async def get_movie_list(bot, message):
     if len(message.command) < 2:
         return await message.reply("Usage:\n`/getmovie <movie name>`", quote=True)
 
     query = message.text.split(" ", 1)[1].strip()
-    await message.reply(f"🔍 Searching for: **{query}** ...", quote=True)
 
-    # Search case-insensitive file names in MongoDB
-    cursor = col.find({"file_name": {"$regex": query, "$options": "i"}})
-    results = await cursor.to_list(length=500)  # fetch up to 500 results
+    # Search all matching movies in DB
+    results = list(col.find({"file_name": {"$regex": query, "$options": "i"}}))
 
     if not results:
-        return await message.reply("❌ No files found matching that name.", quote=True)
+        return await message.reply("❌ No files found matching that name.")
 
-    # Prepare messages in batches (Telegram limit ~4096 chars)
-    batch_text = ""
+    # Group by base movie name
+    movies = {}
     for file in results:
-        try:
-            file_name = file.get("file_name", "Unknown")
-            file_size = get_size(int(file.get("file_size", 0)))  # or humanbytes if you have it
-            file_id = file.get("file_id")
-            file_link = f"https://t.me/{bot.me.username}?start=file_{file_id}"
+        name = file["file_name"].split("(")[0].strip()
+        movies.setdefault(name, []).append(file)
 
-            file_line = f"🎬 <b>{file_name}</b>\n{file_size} - {file_link}\n\n"
+    # Build buttons and numbered list
+    buttons = []
+    text_list = ""
+    for i, (movie_name, files) in enumerate(movies.items(), 1):
+        text_list += f"{i}️⃣ {movie_name} - {len(files)} files\n"
+        buttons.append([InlineKeyboardButton(f"{i}️⃣ {movie_name}", callback_data=f"getmovie_{i}")])
 
-            if len(batch_text) + len(file_line) > 4000:
-                await message.reply_text(batch_text, disable_web_page_preview=True)
-                batch_text = file_line  # start new batch
-            else:
-                batch_text += file_line
+    # Save mapping in temporary storage
+    temp[message.from_user.id] = {"movies": movies}
 
-        except Exception as e:
-            logger.error(f"Error formatting file: {e}")
-            continue
+    # Send numbered list with buttons
+    await message.reply_text(
+        f"🔍 Found movies for: **{query}**\n\n{text_list}",
+        reply_markup=InlineKeyboardMarkup(buttons)
+    )
+# ________________________________________________________________________
+@Client.on_callback_query()
+async def movie_callback(bot, query):
+    if not query.data.startswith("getmovie_"):
+        return
 
-    # send remaining batch
+    user_id = query.from_user.id
+    if user_id not in temp:
+        return await query.answer("❌ Session expired. Send /getmovie again.", show_alert=True)
+
+    movies = temp[user_id]["movies"]
+    index = int(query.data.split("_")[1]) - 1
+    movie_name = list(movies.keys())[index]
+    files = movies[movie_name]
+
+    # Prepare and send files in batches
+    batch_text = ""
+    for file in files:
+        file_name = file.get("file_name", "Unknown")
+        file_size = get_size(int(file.get("file_size", 0)))
+        file_id = file.get("file_id")
+        file_link = f"https://t.me/{bot.me.username}?start=file_{file_id}"
+
+        line = f"🎬 <b>{file_name}</b>\n{file_size} - {file_link}\n\n"
+
+        if len(batch_text) + len(line) > 4000:
+            await query.message.reply_text(batch_text, disable_web_page_preview=True)
+            batch_text = line
+        else:
+            batch_text += line
+
     if batch_text:
-        await message.reply_text(batch_text, disable_web_page_preview=True)
+        await query.message.reply_text(batch_text, disable_web_page_preview=True)
 
-
+    await query.answer()  # remove loading state
+# ---------------------------------------------------------------------------------------------
 
 @Client.on_message(filters.command('channel') & filters.user(ADMINS))
 async def channel_info(bot, message):
@@ -1544,4 +1574,5 @@ async def purge_requests(client, message):
             parse_mode=enums.ParseMode.MARKDOWN,
             disable_web_page_preview=True
         )
+
 
