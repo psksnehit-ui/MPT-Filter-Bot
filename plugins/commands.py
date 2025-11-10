@@ -1611,21 +1611,33 @@ async def get_movie_command(client, message: Message):
         all_results = []
         
         # Search main collection
-        main_results = await get_movies_by_name(movie_name, col)
-        if main_results:
-            all_results.extend(main_results)
+        try:
+            main_results = await get_movies_by_name(movie_name, col)
+            if main_results:
+                all_results.extend(main_results)
+                print(f"Found {len(main_results)} results in main collection")
+        except Exception as e:
+            print(f"Error in main collection search: {e}")
         
         # Search secondary collection  
-        sec_results = await get_movies_by_name(movie_name, sec_col)
-        if sec_results:
-            all_results.extend(sec_results)
+        try:
+            sec_results = await get_movies_by_name(movie_name, sec_col)
+            if sec_results:
+                all_results.extend(sec_results)
+                print(f"Found {len(sec_results)} results in secondary collection")
+        except Exception as e:
+            print(f"Error in secondary collection search: {e}")
         
         if not all_results:
             await search_msg.edit_text(f"❌ No movies found for **{movie_name}**")
             return
         
+        print(f"Total raw results: {len(all_results)}")
+        
         # Group movies by base name
         grouped_movies = group_movies_by_base_name(all_results)
+        
+        print(f"Grouped results: {len(grouped_movies)}")
         
         # Store results in temporary storage
         state_key = f"{message.from_user.id}_{message.id}"
@@ -1641,6 +1653,8 @@ async def get_movie_command(client, message: Message):
     except Exception as e:
         await search_msg.edit_text(f"❌ Error searching for movies: {str(e)}")
         print(f"Error in getmovie command: {e}")
+        import traceback
+        traceback.print_exc()
 
 async def show_movie_page(client, message, state_key, page):
     """Show a page of movie results"""
@@ -1660,7 +1674,8 @@ async def show_movie_page(client, message, state_key, page):
     current_page_results = grouped_movies[start_idx:end_idx]
     
     # Create response text
-    response_text = f"🎬 **Search Results for '{message.text.split(' ', 1)[1]}'**\n\n"
+    search_query = " ".join(message.text.split()[1:]) if hasattr(message, 'text') else "movie"
+    response_text = f"🎬 **Search Results for '{search_query}'**\n\n"
     response_text += f"**Page {page + 1}/{total_pages}** • **Total: {len(grouped_movies)} movies**\n\n"
     
     keyboard = []
