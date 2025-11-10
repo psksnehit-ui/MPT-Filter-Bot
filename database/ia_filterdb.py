@@ -238,56 +238,27 @@ def unpack_new_file_id(new_file_id):
     return file_id, file_ref
 
 # ------------------ Admin Movie Search ------------------
-def get_movies_by_name_sync(query, collection):
-    """
-    Search for movies by name in the database (synchronous version)
-    
-    Args:
-        query: Movie name to search for
-        collection: MongoDB collection object
-    
-    Returns:
-        List of matching movies with file counts
-    """
-    pipeline = [
-        {
-            "$match": {
-                "file_name": {"$regex": query, "$options": "i"}
-            }
-        },
-        {
-            "$group": {
-                "_id": "$file_name",
-                "total_files": {"$sum": 1},
-                "files": {"$push": "$$ROOT"}
-            }
-        },
-        {
-            "$project": {
-                "movie_name": "$_id",
-                "total_files": 1,
-                "files": 1,
-                "_id": 0
-            }
-        },
-        {
-            "$sort": {"movie_name": 1}
-        }
-    ]
-    
+async def search_movie_files(self, query, limit=10):
+    """Search for movie files by name or caption"""
     try:
-        # For synchronous pymongo
-        results = list(collection.aggregate(pipeline))
+        # Create a case-insensitive regex pattern for searching
+        pattern = {"$regex": query, "$options": "i"}
+        
+        # Search in both file_name and caption fields
+        filter_query = {
+            "$or": [
+                {"file_name": pattern},
+                {"caption": pattern}
+            ]
+        }
+        
+        # Find documents matching the query
+        cursor = self.collection.find(filter_query).limit(limit)
+        results = await cursor.to_list(length=limit)
+        
         return results
     except Exception as e:
-        print(f"Database error in get_movies_by_name: {e}")
+        logger.error(f"Error searching movie files: {e}")
         return []
 
-async def get_movies_by_name(query, collection):
-    """
-    Async wrapper for synchronous MongoDB calls
-    """
-    import asyncio
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(None, get_movies_by_name_sync, query, collection)
 
