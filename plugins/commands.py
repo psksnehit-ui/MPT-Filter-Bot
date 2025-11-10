@@ -1534,17 +1534,17 @@ async def get_movie_command(client, message: Message):
     
     try:
         # Search in both collections
-        collections = [col, sec_col]
         all_results = []
         
-        for collection in collections:
-            try:
-                results = await get_movies_by_name(movie_name, collection)
-                if results:
-                    all_results.extend(results)
-            except Exception as e:
-                print(f"Error searching in collection: {e}")
-                continue
+        # Search main collection
+        main_results = await get_movies_by_name(movie_name, col)
+        if main_results:
+            all_results.extend(main_results)
+        
+        # Search secondary collection  
+        sec_results = await get_movies_by_name(movie_name, sec_col)
+        if sec_results:
+            all_results.extend(sec_results)
         
         if not all_results:
             await search_msg.edit_text(f"❌ No movies found for **{movie_name}**")
@@ -1591,6 +1591,8 @@ async def get_movie_command(client, message: Message):
     except Exception as e:
         await search_msg.edit_text(f"❌ Error searching for movies: {str(e)}")
         print(f"Error in getmovie command: {e}")
+
+# ... (rest of the code remains the same as previous version)
 
 @Client.on_callback_query(filters.regex(r"^getmovie_"))
 async def handle_getmovie_callback(client, callback_query):
@@ -1762,3 +1764,4 @@ async def cleanup_expired_states():
 
 # Start cleanup task when bot starts
 asyncio.create_task(cleanup_expired_states())
+
