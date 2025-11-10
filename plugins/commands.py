@@ -53,7 +53,7 @@ async def start(client, message):
             buttons = [[
                 InlineKeyboardButton('🤖 Add Me to Your Group', url=f'http://t.me/{temp.U_NAME}?startgroup=true')
             ],[
-                InlineKeyboardButton('🎬 Movie Group', url=GRP_LNK)
+                InlineKeyboardButton('🎬 𝑱𝒐𝒊𝒏 𝑴𝒐𝒗𝒊𝒆𝒔 & 𝑺𝒆𝒓𝒊𝒆𝒔 𝑮𝒓𝒐𝒖𝒑 👆', url=GRP_LNK)
             ],[
                 InlineKeyboardButton('💬 Help', callback_data='help'),
                 InlineKeyboardButton('ℹ️ About', callback_data='about')
@@ -64,7 +64,7 @@ async def start(client, message):
             buttons = [[
                 InlineKeyboardButton('🤖 Add Me to Your Group', url=f'http://t.me/{temp.U_NAME}?startgroup=true')
             ],[
-                InlineKeyboardButton('🎬 Movie Group', url=GRP_LNK)
+                InlineKeyboardButton('🎬 𝑱𝒐𝒊𝒏 𝑴𝒐𝒗𝒊𝒆𝒔 & 𝑺𝒆𝒓𝒊𝒆𝒔 𝑮𝒓𝒐𝒖𝒑 👆', url=GRP_LNK)
             ],[
                 InlineKeyboardButton('💬 Help', callback_data='help'),
                 InlineKeyboardButton('ℹ️ About', callback_data='about')
@@ -137,7 +137,7 @@ async def start(client, message):
             buttons = [[
                 InlineKeyboardButton('🤖 Add Me to Your Group', url=f'http://t.me/{temp.U_NAME}?startgroup=true')
             ],[
-                InlineKeyboardButton('🎬 Movie Group', url=GRP_LNK)
+                InlineKeyboardButton('🎬 𝑱𝒐𝒊𝒏 𝑴𝒐𝒗𝒊𝒆𝒔 & 𝑺𝒆𝒓𝒊𝒆𝒔 𝑮𝒓𝒐𝒖𝒑 👆', url=GRP_LNK)
             ],[
                 InlineKeyboardButton('💬 Help', callback_data='help'),
                 InlineKeyboardButton('ℹ️ About', callback_data='about')
@@ -148,7 +148,7 @@ async def start(client, message):
             buttons = [[
                 InlineKeyboardButton('🤖 Add Me to Your Group', url=f'http://t.me/{temp.U_NAME}?startgroup=true')
             ],[
-                InlineKeyboardButton('🎬 Movie Group', url=GRP_LNK)
+                InlineKeyboardButton('🎬 𝑱𝒐𝒊𝒏 𝑴𝒐𝒗𝒊𝒆𝒔 & 𝑺𝒆𝒓𝒊𝒆𝒔 𝑮𝒓𝒐𝒖𝒑 👆', url=GRP_LNK)
             ],[
                 InlineKeyboardButton('💬 Help', callback_data='help'),
                 InlineKeyboardButton('ℹ️ About', callback_data='about')
@@ -188,7 +188,7 @@ async def start(client, message):
                 buttons = [[
                     InlineKeyboardButton('🤖 Add Me to Your Group', url=f'http://t.me/{temp.U_NAME}?startgroup=true')
                 ],[
-                    InlineKeyboardButton('🎬 Movie Group', url=GRP_LNK)
+                    InlineKeyboardButton('🎬 𝑱𝒐𝒊𝒏 𝑴𝒐𝒗𝒊𝒆𝒔 & 𝑺𝒆𝒓𝒊𝒆𝒔 𝑮𝒓𝒐𝒖𝒑 👆', url=GRP_LNK)
                 ],[
                     InlineKeyboardButton('💬 Help', callback_data='help'),
                     InlineKeyboardButton('ℹ️ About', callback_data='about')
@@ -199,7 +199,7 @@ async def start(client, message):
                 buttons = [[
                     InlineKeyboardButton('🤖 Add Me to Your Group', url=f'http://t.me/{temp.U_NAME}?startgroup=true')
                 ],[
-                    InlineKeyboardButton('🎬 Movie Group', url=GRP_LNK)
+                    InlineKeyboardButton('🎬 𝑱𝒐𝒊𝒏 𝑴𝒐𝒗𝒊𝒆𝒔 & 𝑺𝒆𝒓𝒊𝒆𝒔 𝑮𝒓𝒐𝒖𝒑 👆', url=GRP_LNK)
                 ],[
                     InlineKeyboardButton('💬 Help', callback_data='help'),
                     InlineKeyboardButton('ℹ️ About', callback_data='about')
@@ -287,7 +287,7 @@ async def start(client, message):
                         InlineKeyboardButton('🛠️ Support Group', url=f'https://t.me/{SUPPORT_CHAT}'),
                         InlineKeyboardButton('📢 Updates Channel', url=CHNL_LNK)
                     ],[
-                        InlineKeyboardButton('👨‍💼 <b>Bot Owner</b>', url=OWNER_LNK)
+                        InlineKeyboardButton('👨‍💼 𝓑𝓸𝓽 𝓞𝔀𝓷𝓮𝓻 👨‍💼', url=OWNER_LNK)
                     ],[
                         InlineKeyboardButton("📥 Download Now 📥", url=download),
                         InlineKeyboardButton('📥 Download Now 📥', url=stream)
@@ -299,7 +299,7 @@ async def start(client, message):
                         InlineKeyboardButton('🛠️ Support Group', url=f'https://t.me/{SUPPORT_CHAT}'),
                         InlineKeyboardButton('📢 Updates Channel', url=CHNL_LNK)
                     ],[
-                        InlineKeyboardButton('👨‍💼 <b>Bot Owner</b>', url=OWNER_LNK)
+                        InlineKeyboardButton('👨‍💼 𝓑𝓸𝓽 𝓞𝔀𝓷𝓮𝓻 👨‍💼', url=OWNER_LNK)
                     ]]
                 msg = await client.send_cached_media(
                     chat_id=message.from_user.id,
@@ -383,7 +383,7 @@ async def start(client, message):
                     fileName = {quote_plus(get_name(log_msg))}
                     stream = f"{URL}watch/{str(log_msg.id)}/{quote_plus(get_name(log_msg))}?hash={get_hash(log_msg)}"
                     download = f"{URL}{str(log_msg.id)}/{quote_plus(get_name(log_msg))}?hash={get_hash(log_msg)}"
- 
+ #log file name + user - user id 
                     await log_msg.reply_text(
                         text=f"•• ʟɪɴᴋ ɢᴇɴᴇʀᴀᴛᴇᴅ ꜰᴏʀ ɪᴅ #{user_id} \n•• ᴜꜱᴇʀɴᴀᴍᴇ : {username} \n\n•• ᖴᎥᒪᗴ Nᗩᗰᗴ : {fileName}",
                         quote=True,
@@ -396,7 +396,7 @@ async def start(client, message):
                         InlineKeyboardButton('🛠️ Support Group', url=f'https://t.me/{SUPPORT_CHAT}'),
                         InlineKeyboardButton('📢 Updates Channel', url=CHNL_LNK)
                     ],[
-                        InlineKeyboardButton('👨‍💼 <b>Bot Owner</b>', url=OWNER_LNK)
+                        InlineKeyboardButton('👨‍💼 𝓑𝓸𝓽 𝓞𝔀𝓷𝓮𝓻 👨‍💼', url=OWNER_LNK)
                     ],[
                         InlineKeyboardButton("📥 Download Now 📥", url=download),
                         InlineKeyboardButton('🎥 Stream Online 🖥️', url=stream)
@@ -408,7 +408,7 @@ async def start(client, message):
                         InlineKeyboardButton('🛠️ Support Group', url=f'https://t.me/{SUPPORT_CHAT}'),
                         InlineKeyboardButton('📢 Updates Channel', url=CHNL_LNK)
                     ],[
-                        InlineKeyboardButton('👨‍💼 <b>Bot Owner</b>', url=OWNER_LNK)
+                        InlineKeyboardButton('👨‍💼 𝓑𝓸𝓽 𝓞𝔀𝓷𝓮𝓻 👨‍💼', url=OWNER_LNK)
                     ]]
                 try:
                     p = await msg.copy(message.chat.id, caption=f_caption, protect_content=True if protect == "/pbatch" else False, reply_markup=InlineKeyboardMarkup(button))
@@ -538,7 +538,7 @@ async def start(client, message):
                 InlineKeyboardButton('🛠️ Support Group', url=f'https://t.me/{SUPPORT_CHAT}'),
                 InlineKeyboardButton('📢 Updates Channel', url=CHNL_LNK)
             ],[
-                InlineKeyboardButton("👨‍💼 <b>Bot Owner</b>", url=OWNER_LNK)
+                InlineKeyboardButton("👨‍💼 𝓑𝓸𝓽 𝓞𝔀𝓷𝓮𝓻 👨‍💼", url=OWNER_LNK)
             ]]
             if STREAM_MODE == True:
                 button.append([InlineKeyboardButton('📥 Download / 🎥 Watch Online', callback_data=f'generate_stream_link:{file_id}')])
@@ -600,7 +600,7 @@ async def start(client, message):
                 InlineKeyboardButton('🛠️ Support Group', url=f'https://t.me/{SUPPORT_CHAT}'),
                 InlineKeyboardButton('📢 Updates Channel', url=CHNL_LNK)
             ],[
-                InlineKeyboardButton("👨‍💼 <b>Bot Owner</b>", url=OWNER_LNK)
+                InlineKeyboardButton("👨‍💼 𝓑𝓸𝓽 𝓞𝔀𝓷𝓮𝓻 👨‍💼", url=OWNER_LNK)
             ]]
             if STREAM_MODE == True:
                 button.append([InlineKeyboardButton('📥 Download / 🎥 Watch Online', callback_data=f'generate_stream_link:{file_id}')])
@@ -664,7 +664,7 @@ async def start(client, message):
         InlineKeyboardButton('🛠️ Support Group', url=f'https://t.me/{SUPPORT_CHAT}'),
         InlineKeyboardButton('📢 Updates Channel', url=CHNL_LNK)
     ],[
-        InlineKeyboardButton("👨‍💼 <b>Bot Owner</b>", url=OWNER_LNK)
+        InlineKeyboardButton("👨‍💼 𝓑𝓸𝓽 𝓞𝔀𝓷𝓮𝓻 👨‍💼", url=OWNER_LNK)
     ]]
     if STREAM_MODE == True:
         button.append([InlineKeyboardButton('📥 Download / 🎥 Watch Online', callback_data=f'generate_stream_link:{file_id}')])
@@ -1874,5 +1874,6 @@ def get_size(size):
         return f"{size:.2f} {power_labels[n]}"
     except:
         return "Unknown"
+
 
 
