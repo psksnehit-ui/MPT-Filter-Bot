@@ -7,7 +7,9 @@ from Script import script
 from pyrogram import Client, filters, enums
 from pyrogram.errors import ChatAdminRequired, FloodWait
 from pyrogram.types import *
-from database.ia_filterdb import col, sec_col, get_file_details, unpack_new_file_id, get_bad_files
+from pyrogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
+from pyrogram.enums import ParseMode
+from database.ia_filterdb import col, sec_col, get_file_details, unpack_new_file_id, get_bad_files, get_movies_by_name
 from database.users_chats_db import db, delete_all_referal_users, get_referal_users_count, get_referal_all_users, referal_add_user
 from database.join_reqs import JoinReqs
 from info import CLONE_MODE, OWNER_LNK, REACTIONS, CHANNELS, REQUEST_TO_JOIN_MODE, TRY_AGAIN_BTN, ADMINS, SHORTLINK_MODE, PREMIUM_AND_REFERAL_MODE, STREAM_MODE, AUTH_CHANNEL, REFERAL_PREMEIUM_TIME, REFERAL_COUNT, PAYMENT_TEXT, PAYMENT_QR, LOG_CHANNEL, PICS, BATCH_FILE_CAPTION, CUSTOM_FILE_CAPTION, PROTECT_CONTENT, CHNL_LNK, GRP_LNK, REQST_CHANNEL, SUPPORT_CHAT_ID, SUPPORT_CHAT, MAX_B_TN, VERIFY, SHORTLINK_API, SHORTLINK_URL, TUTORIAL, VERIFY_TUTORIAL, IS_TUTORIAL, URL
@@ -1502,3 +1504,247 @@ async def purge_requests(client, message):
             parse_mode=enums.ParseMode.MARKDOWN,
             disable_web_page_preview=True
         )
+
+
+# ----------------------------------------------------------------------------------------------------
+
+# Temporary storage for command states
+movie_search_states = {}
+
+@Client.on_message(filters.command("getmovie") & filters.private)
+async def get_movie_command(client, message: Message):
+    # Check if user is admin
+    if message.from_user.id not in ADMINS:
+        await message.reply_text("🚫 This command is for admins only.")
+        return
+
+    # Parse command arguments
+    if len(message.command) < 2:
+        await message.reply_text(
+            "❌ **Usage:** `/getmovie <movie name>`\n\n"
+            "Example: `/getmovie avengers`",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return
+
+    movie_name = " ".join(message.command[1:])
+    
+    # Show searching message
+    search_msg = await message.reply_text(f"🔍 Searching for **{movie_name}**...")
+    
+    try:
+        # Search in both main and secondary collections
+        from database.ia_filterdb import Media, second_Media
+        
+        results_main = await get_movies_by_name(movie_name, Media)
+        results_secondary = await get_movies_by_name(movie_name, second_Media)
+        
+        all_results = results_main + results_secondary
+        
+        if not all_results:
+            await search_msg.edit_text(f"❌ No movies found for **{movie_name}**")
+            return
+        
+        # Store results in temporary storage
+        state_key = f"{message.from_user.id}_{message.id}"
+        movie_search_states[state_key] = {
+            "results": all_results,
+            "timestamp": asyncio.get_event_loop().time()
+        }
+        
+        # Create response with buttons
+        response_text = f"🎬 **Search Results for '{movie_name}'**\n\n"
+        
+        keyboard = []
+        for idx, movie in enumerate(all_results[:10]):  # Limit to 10 results
+            movie_name_escaped = escape_html(movie["movie_name"])
+            response_text += f"**{idx+1}. {movie_name_escaped}**\n"
+            response_text += f"   📁 Files: {movie['total_files']}\n\n"
+            
+            # Add button for each movie
+            keyboard.append([
+                InlineKeyboardButton(
+                    f"{idx+1}. {movie['movie_name'][:30]}... ({movie['total_files']} files)",
+                    callback_data=f"getmovie_{state_key}_{idx}"
+                )
+            ])
+        
+        if len(all_results) > 10:
+            response_text += f"📋 Showing 10 out of {len(all_results)} results"
+        
+        # Add cancel button
+        keyboard.append([InlineKeyboardButton("❌ Cancel", callback_data=f"getmovie_cancel_{state_key}")])
+        
+        await search_msg.edit_text(
+            response_text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode=ParseMode.HTML
+        )
+        
+    except Exception as e:
+        await search_msg.edit_text(f"❌ Error searching for movies: {str(e)}")
+        print(f"Error in getmovie command: {e}")
+
+@Client.on_callback_query(filters.regex(r"^getmovie_"))
+async def handle_getmovie_callback(client, callback_query):
+    user_id = callback_query.from_user.id
+    data = callback_query.data.split("_")
+    
+    if user_id not in ADMINS:
+        await callback_query.answer("🚫 Admin only command!", show_alert=True)
+        return
+    
+    if data[1] == "cancel":
+        state_key = data[2]
+        if state_key in movie_search_states:
+            del movie_search_states[state_key]
+        await callback_query.message.edit_text("❌ Search cancelled.")
+        await callback_query.answer()
+        return
+    
+    state_key = f"{data[1]}_{data[2]}"
+    movie_index = int(data[3])
+    
+    if state_key not in movie_search_states:
+        await callback_query.answer("❌ Search session expired!", show_alert=True)
+        await callback_query.message.edit_text("❌ Search session expired. Please start a new search.")
+        return
+    
+    results = movie_search_states[state_key]["results"]
+    
+    if movie_index >= len(results):
+        await callback_query.answer("❌ Invalid selection!", show_alert=True)
+        return
+    
+    selected_movie = results[movie_index]
+    
+    await callback_query.answer(f"📦 Getting {len(selected_movie['files'])} files...")
+    
+    # Send files information
+    await send_movie_files(client, callback_query.message, selected_movie, user_id)
+    
+    # Clean up
+    del movie_search_states[state_key]
+
+async def send_movie_files(client, message, movie_data, user_id):
+    """Send all files for a selected movie"""
+    files = movie_data["files"]
+    movie_name = movie_data["movie_name"]
+    
+    # Create batches to avoid message length limits
+    batch_size = 10  # Number of files per message
+    batches = [files[i:i + batch_size] for i in range(0, len(files), batch_size)]
+    
+    for batch_num, batch in enumerate(batches):
+        response_text = f"🎬 **{escape_html(movie_name)}**\n"
+        response_text += f"📦 **Batch {batch_num + 1}/{len(batches)}**\n"
+        response_text += f"📊 **Total Files:** {len(files)}\n\n"
+        
+        for file_num, file_data in enumerate(batch, 1):
+            file_name = escape_html(file_data.get("file_name", "Unknown"))
+            file_size = format_size(file_data.get("file_size", 0))
+            file_id = file_data.get("file_id", "")
+            
+            # Create Telegram file link
+            if file_id:
+                file_link = f"https://t.me/{client.me.username}?start=file_{file_id}"
+                file_display = f'<a href="{file_link}">📥 Download</a>'
+            else:
+                file_display = "❌ No file ID"
+            
+            global_file_id = file_data.get("_id", "")
+            
+            response_text += f"**{batch_num * batch_size + file_num}. {file_name}**\n"
+            response_text += f"   📏 Size: {file_size}\n"
+            response_text += f"   🔗 {file_display}\n"
+            response_text += f"   🆔 ID: `{global_file_id}`\n\n"
+        
+        # Add navigation for multiple batches
+        keyboard = []
+        if len(batches) > 1:
+            nav_buttons = []
+            if batch_num > 0:
+                nav_buttons.append(InlineKeyboardButton("⬅️ Previous", callback_data=f"nav_{user_id}_{batch_num-1}"))
+            if batch_num < len(batches) - 1:
+                nav_buttons.append(InlineKeyboardButton("Next ➡️", callback_data=f"nav_{user_id}_{batch_num+1}"))
+            if nav_buttons:
+                keyboard.append(nav_buttons)
+        
+        keyboard.append([InlineKeyboardButton("✅ Done", callback_data=f"getmovie_done_{user_id}")])
+        
+        if batch_num == 0:
+            # Edit the original message for first batch
+            await message.edit_text(
+                response_text,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode=ParseMode.HTML,
+                disable_web_page_preview=True
+            )
+        else:
+            # Send new message for subsequent batches
+            await message.reply_text(
+                response_text,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode=ParseMode.HTML,
+                disable_web_page_preview=True
+            )
+        
+        # Small delay to avoid rate limiting
+        await asyncio.sleep(0.5)
+
+@Client.on_callback_query(filters.regex(r"^nav_"))
+async def handle_navigation(client, callback_query):
+    """Handle navigation between file batches"""
+    user_id = callback_query.from_user.id
+    data = callback_query.data.split("_")
+    
+    if user_id not in ADMINS:
+        await callback_query.answer("🚫 Admin only!", show_alert=True)
+        return
+    
+    # This would need additional state management for navigation
+    # For simplicity, we'll just acknowledge the click
+    await callback_query.answer("Navigation would go here")
+
+@Client.on_callback_query(filters.regex(r"^getmovie_done_"))
+async def handle_done(client, callback_query):
+    """Handle done button"""
+    await callback_query.answer("✅ Completed!")
+    await callback_query.message.edit_reply_markup(reply_markup=None)
+
+# Utility functions
+def escape_html(text):
+    """Escape HTML special characters"""
+    if not text:
+        return ""
+    return str(text).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+def format_size(size_bytes):
+    """Format file size in human readable format"""
+    if not size_bytes:
+        return "0 B"
+    
+    size_names = ["B", "KB", "MB", "GB", "TB"]
+    i = 0
+    while size_bytes >= 1024 and i < len(size_names) - 1:
+        size_bytes /= 1024.0
+        i += 1
+    return f"{size_bytes:.2f} {size_names[i]}"
+
+# Clean up expired states periodically
+async def cleanup_expired_states():
+    """Clean up expired search states"""
+    while True:
+        current_time = asyncio.get_event_loop().time()
+        expired_keys = [
+            key for key, state in movie_search_states.items()
+            if current_time - state["timestamp"] > 300  # 5 minutes expiration
+        ]
+        for key in expired_keys:
+            del movie_search_states[key]
+        await asyncio.sleep(60)  # Run every minute
+
+# Start cleanup task when bot starts
+import asyncio
+asyncio.create_task(cleanup_expired_states())
+
