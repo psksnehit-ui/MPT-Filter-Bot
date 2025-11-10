@@ -1533,13 +1533,18 @@ async def get_movie_command(client, message: Message):
     search_msg = await message.reply_text(f"🔍 Searching for **{movie_name}**...")
     
     try:
-        # Search in both main and secondary collections
-        from database.ia_filterdb import Media, second_Media
+        # Search in both collections
+        collections = [col, sec_col]
+        all_results = []
         
-        results_main = await get_movies_by_name(movie_name, Media)
-        results_secondary = await get_movies_by_name(movie_name, second_Media)
-        
-        all_results = results_main + results_secondary
+        for collection in collections:
+            try:
+                results = await get_movies_by_name(movie_name, collection)
+                if results:
+                    all_results.extend(results)
+            except Exception as e:
+                print(f"Error searching in collection: {e}")
+                continue
         
         if not all_results:
             await search_msg.edit_text(f"❌ No movies found for **{movie_name}**")
@@ -1562,9 +1567,11 @@ async def get_movie_command(client, message: Message):
             response_text += f"   📁 Files: {movie['total_files']}\n\n"
             
             # Add button for each movie
+            button_text = f"{idx+1}. {truncate_text(movie['movie_name'], 30)} ({movie['total_files']} files)"
+            
             keyboard.append([
                 InlineKeyboardButton(
-                    f"{idx+1}. {movie['movie_name'][:30]}... ({movie['total_files']} files)",
+                    button_text,
                     callback_data=f"getmovie_{state_key}_{idx}"
                 )
             ])
@@ -1624,7 +1631,8 @@ async def handle_getmovie_callback(client, callback_query):
     await send_movie_files(client, callback_query.message, selected_movie, user_id)
     
     # Clean up
-    del movie_search_states[state_key]
+    if state_key in movie_search_states:
+        del movie_search_states[state_key]
 
 async def send_movie_files(client, message, movie_data, user_id):
     """Send all files for a selected movie"""
@@ -1632,7 +1640,7 @@ async def send_movie_files(client, message, movie_data, user_id):
     movie_name = movie_data["movie_name"]
     
     # Create batches to avoid message length limits
-    batch_size = 10  # Number of files per message
+    batch_size = 8  # Number of files per message
     batches = [files[i:i + batch_size] for i in range(0, len(files), batch_size)]
     
     for batch_num, batch in enumerate(batches):
@@ -1652,12 +1660,15 @@ async def send_movie_files(client, message, movie_data, user_id):
             else:
                 file_display = "❌ No file ID"
             
-            global_file_id = file_data.get("_id", "")
+            global_file_id = str(file_data.get("_id", ""))
             
             response_text += f"**{batch_num * batch_size + file_num}. {file_name}**\n"
             response_text += f"   📏 Size: {file_size}\n"
             response_text += f"   🔗 {file_display}\n"
-            response_text += f"   🆔 ID: `{global_file_id}`\n\n"
+            if global_file_id and global_file_id != "None":
+                response_text += f"   🆔 ID: `{global_file_id}`\n\n"
+            else:
+                response_text += "\n"
         
         # Add navigation for multiple batches
         keyboard = []
@@ -1696,20 +1707,19 @@ async def send_movie_files(client, message, movie_data, user_id):
 async def handle_navigation(client, callback_query):
     """Handle navigation between file batches"""
     user_id = callback_query.from_user.id
-    data = callback_query.data.split("_")
     
     if user_id not in ADMINS:
         await callback_query.answer("🚫 Admin only!", show_alert=True)
         return
     
-    # This would need additional state management for navigation
-    # For simplicity, we'll just acknowledge the click
-    await callback_query.answer("Navigation would go here")
+    # For now, just acknowledge the click since full navigation would require more state management
+    await callback_query.answer("Use the previous/next messages to navigate")
 
 @Client.on_callback_query(filters.regex(r"^getmovie_done_"))
 async def handle_done(client, callback_query):
     """Handle done button"""
     await callback_query.answer("✅ Completed!")
+    # Remove the inline keyboard but keep the message
     await callback_query.message.edit_reply_markup(reply_markup=None)
 
 # Utility functions
@@ -1718,6 +1728,12 @@ def escape_html(text):
     if not text:
         return ""
     return str(text).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+def truncate_text(text, max_length):
+    """Truncate text and add ellipsis if too long"""
+    if len(text) <= max_length:
+        return text
+    return text[:max_length] + "..."
 
 def format_size(size_bytes):
     """Format file size in human readable format"""
@@ -1745,6 +1761,4 @@ async def cleanup_expired_states():
         await asyncio.sleep(60)  # Run every minute
 
 # Start cleanup task when bot starts
-import asyncio
 asyncio.create_task(cleanup_expired_states())
-
