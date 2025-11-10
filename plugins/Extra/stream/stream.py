@@ -36,15 +36,15 @@ async def stream_start(client, message):
             disable_web_page_preview=True,
             reply_markup=InlineKeyboardMarkup(
                 [[
-                    InlineKeyboardButton("🚀 Fast Download 🚀", url=download),  # web download Link
-                    InlineKeyboardButton('🖥️ Watch online 🖥️', url=stream)   # web stream Link
+                    InlineKeyboardButton("📥 Download Now 📥", url=download),  # web download Link
+                    InlineKeyboardButton('🎥 Stream Online 🖥️', url=stream)   # web stream Link
                 ]]
             )
         )
         rm=InlineKeyboardMarkup(
             [[
-                InlineKeyboardButton("sᴛʀᴇᴀᴍ 🖥", url=stream),
-                InlineKeyboardButton('ᴅᴏᴡɴʟᴏᴀᴅ 📥', url=download)
+                InlineKeyboardButton("🎥 Stream Online 🖥️", url=stream),
+                InlineKeyboardButton('📥 Download Now 📥', url=download)
             ]] 
         )
         msg_text = """<i><u>𝗬𝗼𝘂𝗿 𝗟𝗶𝗻𝗸 𝗚𝗲𝗻𝗲𝗿𝗮𝘁𝗲𝗱 !</u></i>\n\n<b>📂 Fɪʟᴇ ɴᴀᴍᴇ :</b> <i>{}</i>\n\n<b>📦 Fɪʟᴇ ꜱɪᴢᴇ :</b> <i>{}</i>\n\n<b>📥 Dᴏᴡɴʟᴏᴀᴅ :</b> <i>{}</i>\n\n<b> 🖥ᴡᴀᴛᴄʜ  :</b> <i>{}</i>\n\n<b>🚸 Nᴏᴛᴇ : ʟɪɴᴋ ᴡᴏɴ'ᴛ ᴇxᴘɪʀᴇ ᴛɪʟʟ ɪ ᴅᴇʟᴇᴛᴇ</b>"""
