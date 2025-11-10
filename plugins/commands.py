@@ -1510,7 +1510,6 @@ async def purge_requests(client, message):
 
 # Temporary storage for command states
 movie_search_states = {}
-file_selection_states = {}
 
 @Client.on_message(filters.command("getmovie") & filters.private)
 async def get_movie_command(client, message: Message):
@@ -1568,7 +1567,7 @@ async def get_movie_command(client, message: Message):
             response_text += f"   📁 Files: {movie['total_files']}\n\n"
             
             # Add button for each movie
-            button_text = f"{idx+1}. {truncate_text(movie['movie_name'], 30)} ({movie['total_files']} files)"
+            button_text = f"{idx+1}. {truncate_text(movie['movie_name'], 30)}"
             
             keyboard.append([
                 InlineKeyboardButton(
@@ -1628,72 +1627,55 @@ async def handle_getmovie_callback(client, callback_query):
     
     await callback_query.answer(f"📦 Loading {len(selected_movie['files'])} files...")
     
-    # Show files with selection options
-    await show_files_selection(client, callback_query.message, selected_movie, user_id, state_key)
+    # Show files with Send button
+    await show_files_with_send_option(client, callback_query.message, selected_movie, user_id)
 
-async def show_files_selection(client, message, movie_data, user_id, state_key):
-    """Show files with checkboxes for selection"""
+async def show_files_with_send_option(client, message, movie_data, user_id):
+    """Show all files with a Send button"""
     files = movie_data["files"]
     movie_name = movie_data["movie_name"]
     
-    # Initialize selection state
-    selection_key = f"{user_id}_{message.id}"
-    file_selection_states[selection_key] = {
+    # Show files preview with Send button
+    response_text = f"🎬 **{escape_html(movie_name)}**\n\n"
+    response_text += f"**Found {len(files)} files:**\n\n"
+    
+    # Show first few files as preview
+    preview_files = files[:3]  # Show first 3 files as preview
+    for idx, file_data in enumerate(preview_files, 1):
+        file_name = escape_html(file_data.get("file_name", "Unknown"))
+        file_size = format_size(file_data.get("file_size", 0))
+        
+        response_text += f"**{idx}. {file_name}**\n"
+        response_text += f"   📏 Size: {file_size}\n\n"
+    
+    if len(files) > 3:
+        response_text += f"**... and {len(files) - 3} more files**\n\n"
+    
+    response_text += "Click **Send All Files** to send all files in the requested format."
+    
+    # Create keyboard with Send button
+    keyboard = [
+        [InlineKeyboardButton("📤 Send All Files", callback_data=f"sendall_{user_id}_{message.id}")],
+        [InlineKeyboardButton("🔙 Back to Search", callback_data="back_to_search")]
+    ]
+    
+    # Store files data for sending
+    send_key = f"{user_id}_{message.id}"
+    movie_search_states[send_key] = {
         "files": files,
-        "selected_indices": set(),  # Store indices of selected files
         "movie_name": movie_name,
         "timestamp": asyncio.get_event_loop().time()
     }
     
-    # Create files list with checkboxes
-    response_text = f"🎬 **{escape_html(movie_name)}**\n\n"
-    response_text += "**Select files to send:**\n\n"
-    
-    keyboard = []
-    for idx, file_data in enumerate(files):
-        file_name = escape_html(file_data.get("file_name", "Unknown"))
-        file_size = format_size(file_data.get("file_size", 0))
-        
-        # Create checkbox button
-        checkbox = "☑️" if idx in file_selection_states[selection_key]["selected_indices"] else "⬜"
-        button_text = f"{checkbox} {idx+1}. {truncate_text(file_name, 35)}"
-        
-        keyboard.append([
-            InlineKeyboardButton(
-                button_text,
-                callback_data=f"selectfile_{selection_key}_{idx}"
-            )
-        ])
-    
-    # Add action buttons
-    action_buttons = []
-    if files:
-        action_buttons.extend([
-            InlineKeyboardButton("✅ Select All", callback_data=f"selectall_{selection_key}"),
-            InlineKeyboardButton("❌ Clear All", callback_data=f"clearall_{selection_key}")
-        ])
-    
-    keyboard.append(action_buttons)
-    
-    # Add send and back buttons
-    keyboard.append([
-        InlineKeyboardButton("📤 Send Selected", callback_data=f"sendfiles_{selection_key}"),
-        InlineKeyboardButton("🔙 Back", callback_data=f"goback_{state_key}")
-    ])
-    
     await message.edit_text(
         response_text,
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode=ParseMode.HTML,
         disable_web_page_preview=True
     )
-    
-    # Clean up movie search state
-    if state_key in movie_search_states:
-        del movie_search_states[state_key]
 
-@Client.on_callback_query(filters.regex(r"^selectfile_"))
-async def handle_file_selection(client, callback_query):
+@Client.on_callback_query(filters.regex(r"^sendall_"))
+async def handle_send_all_files(client, callback_query):
     user_id = callback_query.from_user.id
     data = callback_query.data.split("_")
     
@@ -1701,178 +1683,60 @@ async def handle_file_selection(client, callback_query):
         await callback_query.answer("🚫 Admin only!", show_alert=True)
         return
     
-    selection_key = f"{data[1]}_{data[2]}"
-    file_index = int(data[3])
+    send_key = f"{data[1]}_{data[2]}"
     
-    if selection_key not in file_selection_states:
+    if send_key not in movie_search_states:
         await callback_query.answer("❌ Session expired!", show_alert=True)
         return
     
-    # Toggle selection
-    selected_indices = file_selection_states[selection_key]["selected_indices"]
-    if file_index in selected_indices:
-        selected_indices.remove(file_index)
-    else:
-        selected_indices.add(file_index)
-    
-    await callback_query.answer("Selection updated!")
-    
-    # Refresh the selection view
-    await refresh_selection_view(client, callback_query.message, selection_key)
-
-@Client.on_callback_query(filters.regex(r"^selectall_"))
-async def handle_select_all(client, callback_query):
-    user_id = callback_query.from_user.id
-    data = callback_query.data.split("_")
-    
-    if user_id not in ADMINS:
-        await callback_query.answer("🚫 Admin only!", show_alert=True)
-        return
-    
-    selection_key = f"{data[1]}_{data[2]}"
-    
-    if selection_key not in file_selection_states:
-        await callback_query.answer("❌ Session expired!", show_alert=True)
-        return
-    
-    # Select all files
-    files = file_selection_states[selection_key]["files"]
-    file_selection_states[selection_key]["selected_indices"] = set(range(len(files)))
-    
-    await callback_query.answer("All files selected!")
-    await refresh_selection_view(client, callback_query.message, selection_key)
-
-@Client.on_callback_query(filters.regex(r"^clearall_"))
-async def handle_clear_all(client, callback_query):
-    user_id = callback_query.from_user.id
-    data = callback_query.data.split("_")
-    
-    if user_id not in ADMINS:
-        await callback_query.answer("🚫 Admin only!", show_alert=True)
-        return
-    
-    selection_key = f"{data[1]}_{data[2]}"
-    
-    if selection_key not in file_selection_states:
-        await callback_query.answer("❌ Session expired!", show_alert=True)
-        return
-    
-    # Clear all selections
-    file_selection_states[selection_key]["selected_indices"] = set()
-    
-    await callback_query.answer("Selection cleared!")
-    await refresh_selection_view(client, callback_query.message, selection_key)
-
-@Client.on_callback_query(filters.regex(r"^sendfiles_"))
-async def handle_send_files(client, callback_query):
-    user_id = callback_query.from_user.id
-    data = callback_query.data.split("_")
-    
-    if user_id not in ADMINS:
-        await callback_query.answer("🚫 Admin only!", show_alert=True)
-        return
-    
-    selection_key = f"{data[1]}_{data[2]}"
-    
-    if selection_key not in file_selection_states:
-        await callback_query.answer("❌ Session expired!", show_alert=True)
-        return
-    
-    state = file_selection_states[selection_key]
-    selected_indices = state["selected_indices"]
+    state = movie_search_states[send_key]
     files = state["files"]
     movie_name = state["movie_name"]
     
-    if not selected_indices:
-        await callback_query.answer("❌ No files selected!", show_alert=True)
-        return
+    await callback_query.answer(f"📤 Sending {len(files)} files...")
     
-    await callback_query.answer(f"📤 Sending {len(selected_indices)} files...")
+    # Remove the inline keyboard from original message
+    await callback_query.message.edit_reply_markup(reply_markup=None)
     
-    # Send selected files
-    await send_selected_files(client, callback_query.message, files, selected_indices, movie_name)
+    # Send all files in the requested format
+    await send_all_files_formatted(client, callback_query.message, files, movie_name)
     
     # Clean up
-    if selection_key in file_selection_states:
-        del file_selection_states[selection_key]
+    if send_key in movie_search_states:
+        del movie_search_states[send_key]
 
-@Client.on_callback_query(filters.regex(r"^goback_"))
-async def handle_go_back(client, callback_query):
+@Client.on_callback_query(filters.regex(r"^back_to_search$"))
+async def handle_back_to_search(client, callback_query):
     user_id = callback_query.from_user.id
-    data = callback_query.data.split("_")
     
     if user_id not in ADMINS:
         await callback_query.answer("🚫 Admin only!", show_alert=True)
         return
     
-    # This would go back to movie selection (you can implement this if needed)
     await callback_query.answer("Going back...")
-    await callback_query.message.edit_text("🔙 Use /getmovie command again to search for movies.")
-
-async def refresh_selection_view(client, message, selection_key):
-    """Refresh the file selection view with updated checkboxes"""
-    if selection_key not in file_selection_states:
-        return
-    
-    state = file_selection_states[selection_key]
-    files = state["files"]
-    movie_name = state["movie_name"]
-    selected_indices = state["selected_indices"]
-    
-    response_text = f"🎬 **{escape_html(movie_name)}**\n\n"
-    response_text += f"**Selected: {len(selected_indices)}/{len(files)} files**\n\n"
-    
-    keyboard = []
-    for idx, file_data in enumerate(files):
-        file_name = escape_html(file_data.get("file_name", "Unknown"))
-        file_size = format_size(file_data.get("file_size", 0))
-        
-        # Create checkbox button
-        checkbox = "☑️" if idx in selected_indices else "⬜"
-        button_text = f"{checkbox} {idx+1}. {truncate_text(file_name, 35)}"
-        
-        keyboard.append([
-            InlineKeyboardButton(
-                button_text,
-                callback_data=f"selectfile_{selection_key}_{idx}"
-            )
+    await callback_query.message.edit_text(
+        "🔙 Use /getmovie command again to search for movies.",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔄 New Search", switch_inline_query_current_chat="")]
         ])
-    
-    # Add action buttons
-    action_buttons = []
-    if files:
-        action_buttons.extend([
-            InlineKeyboardButton("✅ Select All", callback_data=f"selectall_{selection_key}"),
-            InlineKeyboardButton("❌ Clear All", callback_data=f"clearall_{selection_key}")
-        ])
-    
-    keyboard.append(action_buttons)
-    
-    # Add send button (only if files are selected)
-    if selected_indices:
-        keyboard.append([InlineKeyboardButton("📤 Send Selected Files", callback_data=f"sendfiles_{selection_key}")])
-    
-    keyboard.append([InlineKeyboardButton("🔙 Back to Search", callback_data=f"goback_{selection_key}")])
-    
-    await message.edit_text(
-        response_text,
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode=ParseMode.HTML,
-        disable_web_page_preview=True
     )
 
-async def send_selected_files(client, message, files, selected_indices, movie_name):
-    """Send the selected files in the requested format"""
-    selected_files = [files[i] for i in selected_indices]
+async def send_all_files_formatted(client, message, files, movie_name):
+    """Send all files in the exact format requested"""
     
     # Send in batches to avoid message length limits
     batch_size = 5
-    batches = [selected_files[i:i + batch_size] for i in range(0, len(selected_files), batch_size)]
+    batches = [files[i:i + batch_size] for i in range(0, len(files), batch_size)]
     
-    for batch_num, batch in enumerate(batches):
-        batch_text = f"🎬 **{escape_html(movie_name)}**\n\n"
+    # Send header message
+    await message.reply_text(f"🎬 **{escape_html(movie_name)}**\n\n**Sending all {len(files)} files:**")
+    
+    total_sent = 0
+    
+    for batch_num, batch in enumerate(batches, 1):
+        batch_text = ""
         
-        for file_num, file_data in enumerate(batch, 1):
+        for file_data in batch:
             file_name = file_data.get("file_name", "Unknown")
             file_size = format_size(file_data.get("file_size", 0))
             file_id = file_data.get("file_id", "")
@@ -1883,14 +1747,16 @@ async def send_selected_files(client, message, files, selected_indices, movie_na
             else:
                 file_link = "❌ No file ID available"
             
-            batch_text += f"**{file_name}**\n"
+            # Format exactly as requested
+            batch_text += f"{file_name}\n"
             batch_text += f"{file_size} - {file_link}\n\n"
+            total_sent += 1
         
         if len(batches) > 1:
-            batch_text += f"**Batch {batch_num + 1}/{len(batches)}**\n"
+            batch_text += f"**Batch {batch_num}/{len(batches)}** • {total_sent}/{len(files)} files sent\n"
         
         await message.reply_text(
-            batch_text,
+            batch_text.strip(),
             parse_mode=ParseMode.MARKDOWN,
             disable_web_page_preview=True
         )
@@ -1899,7 +1765,7 @@ async def send_selected_files(client, message, files, selected_indices, movie_na
         await asyncio.sleep(0.5)
     
     # Send completion message
-    await message.reply_text(f"✅ Successfully sent {len(selected_files)} files!")
+    await message.reply_text(f"✅ **Completed!** Sent all {len(files)} files.")
 
 # Utility functions
 def escape_html(text):
@@ -1931,24 +1797,14 @@ async def cleanup_expired_states():
     """Clean up expired search states"""
     while True:
         current_time = asyncio.get_event_loop().time()
-        
-        # Clean movie search states
-        expired_movie_keys = [
+        expired_keys = [
             key for key, state in movie_search_states.items()
             if current_time - state["timestamp"] > 300  # 5 minutes expiration
         ]
-        for key in expired_movie_keys:
+        for key in expired_keys:
             del movie_search_states[key]
-        
-        # Clean file selection states
-        expired_file_keys = [
-            key for key, state in file_selection_states.items()
-            if current_time - state["timestamp"] > 300  # 5 minutes expiration
-        ]
-        for key in expired_file_keys:
-            del file_selection_states[key]
-        
         await asyncio.sleep(60)  # Run every minute
 
 # Start cleanup task when bot starts
 asyncio.create_task(cleanup_expired_states())
+
