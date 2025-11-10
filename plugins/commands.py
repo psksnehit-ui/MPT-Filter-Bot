@@ -1507,25 +1507,11 @@ async def purge_requests(client, message):
 
 
 # ----------------------------------------------------------------------------------------------------
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes, filters
-from database.ia_filterdb import Media
-from utils import get_size
-import math
-
-from pyrogram import Client, filters
-from pyrogram.types import Message
-from database.ia_filterdb import Media, get_file_details, unpack_new_file_id, get_bad_files
-from database.users_chats_db import db
-from info import ADMINS
-import logging
-
-logger = logging.getLogger(__name__)
-
-# Add the getmovie command
+# ----------------------------------------------------------------------------------------------------
+# GetMovie Command for Admins
 @Client.on_message(filters.command("getmovie") & filters.user(ADMINS))
-async def getmovie_command(client, message: Message):
-    """Handle /getmovie command to search for movie files"""
+async def getmovie_command(client, message):
+    """Handle /getmovie command to search for movie files - Admin Only"""
     try:
         # Check if user provided a movie name
         if len(message.command) < 2:
@@ -1540,41 +1526,52 @@ async def getmovie_command(client, message: Message):
         movie_name = " ".join(message.command[1:])
         
         # Log the command usage
-        logger.info(f"User {message.from_user.id} searched for movie: {movie_name}")
+        logger.info(f"Admin {message.from_user.id} searched for movie: {movie_name}")
 
-        # Search for movie files
+        # Show searching message
+        search_msg = await message.reply_text(f"🔍 **Searching for '{movie_name}'...**")
+        
+        # Search for movie files (sync call since we're using PyMongo)
         media = Media()
-        results = await media.search_movie_files(movie_name, limit=10)
+        results = media.search_movie_files(movie_name, limit=10)
         
         if not results:
-            await message.reply_text(
-                f"❌ **No files found for '{movie_name}'**"
-            )
+            await search_msg.edit_text(f"❌ **No files found for '{movie_name}'**")
             return
 
         # Format the results
-        response = await format_movie_results(results, client.me.username)
+        bot_username = (await client.get_me()).username
+        response = format_movie_results(results, bot_username)
         
         # Send the response
-        await send_long_message(client, message, response)
+        await send_long_message(client, search_msg, response)
 
     except Exception as e:
-        logger.error(f"Error in getmovie command: {e}")
+        logger.error(f"Error in getmovie command: {e}", exc_info=True)
         await message.reply_text(
             "❌ **An error occurred while searching. Please try again later.**"
         )
 
-async def format_movie_results(results, bot_username):
+def format_movie_results(results, bot_username):
     """Format movie results into a readable message"""
     if not results:
         return "**No results found.**"
     
     message_parts = []
-    message_parts.append(f"🎬 **Search Results ({len(results)} found):**\n")
+    message_parts.append(f"🎬 **Search Results ({len(results)} found):**\n\n")
     
     for i, result in enumerate(results, 1):
-        # Get file name (prefer caption, fall back to file_name)
-        file_name = result.get('caption') or result.get('file_name', 'Unknown')
+        # Get file name (prefer file_name, fall back to caption)
+        file_name = result.get('file_name', 'Unknown')
+        
+        # Clean caption if available for better display
+        if result.get('caption'):
+            import re
+            from html import unescape
+            caption = unescape(result['caption'])
+            caption = re.sub(r'<.*?>', '', caption).strip()
+            if caption and len(caption) > 10:  # Only use if meaningful
+                file_name = caption
         
         # Get file size in readable format
         file_size = get_size(result.get('file_size', 0))
@@ -1583,21 +1580,23 @@ async def format_movie_results(results, bot_username):
         file_id = result.get('file_id', '')
         direct_link = f"https://t.me/{bot_username}?start=file_{file_id}"
         
-        # Format the entry
+        # Format the entry (exactly as requested)
         entry = (
-            f"🎬 **{file_name}**\n"
-            f"📦 **Size:** {file_size}\n"
-            f"🔗 **Link:** `{direct_link}`\n"
+            f"🎬 {file_name}\n"
+            f"📦 {file_size}\n"
+            f"🔗 {direct_link}\n"
         )
         
         message_parts.append(entry)
+        if i < len(results):  # Add spacing between entries except for the last one
+            message_parts.append("")
     
     return "\n".join(message_parts)
 
-async def send_long_message(client, message, text, max_length=4096):
+async def send_long_message(client, message_obj, text, max_length=4096):
     """Send long messages by splitting them if they exceed Telegram's limit"""
     if len(text) <= max_length:
-        await message.reply_text(text)
+        await message_obj.edit_text(text)
         return
     
     # Split the message into chunks
@@ -1620,9 +1619,12 @@ async def send_long_message(client, message, text, max_length=4096):
     if current_message.strip():
         messages.append(current_message.strip())
     
-    # Send all message chunks
-    for msg in messages:
-        await message.reply_text(msg)
+    # Send all message chunks (edit first message, send others as new)
+    for i, msg in enumerate(messages):
+        if i == 0:
+            await message_obj.edit_text(msg)
+        else:
+            await message_obj.reply_text(msg)
 
 def get_size(size):
     """Convert file size to human readable format"""
@@ -1640,112 +1642,3 @@ def get_size(size):
         return f"{size:.2f} {power_labels[n]}"
     except:
         return "Unknown"
-
-async def getmovie_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /getmovie command to search for movie files"""
-    try:
-        # Check if user provided a movie name
-        if len(context.args) == 0:
-            await update.message.reply_text(
-                "❌ Please provide a movie name.\n\n"
-                "Usage: /getmovie <movie name>\n"
-                "Example: /getmovie The Fantastic Four"
-            )
-            return
-
-        # Get the movie name from command arguments
-        movie_name = " ".join(context.args)
-        user = update.effective_user
-        
-        # Log the command usage
-        logger.info(f"User {user.id} searched for movie: {movie_name}")
-
-        # Search for movie files
-        results = await Media().search_movie_files(movie_name, limit=10)
-        
-        if not results:
-            await update.message.reply_text(
-                f"❌ No files found for '{movie_name}'"
-            )
-            return
-
-        # Format the results
-        response = format_movie_results(results, context.bot.username)
-        
-        # Send the response (automatically handles message splitting)
-        await send_long_message(update, response)
-
-    except Exception as e:
-        logger.error(f"Error in getmovie command: {e}")
-        await update.message.reply_text(
-            "❌ An error occurred while searching. Please try again later."
-        )
-
-def format_movie_results(results, bot_username):
-    """Format movie results into a readable message"""
-    if not results:
-        return "No results found."
-    
-    message_parts = []
-    message_parts.append(f"🎬 <b>Search Results ({len(results)} found):</b>\n")
-    
-    for i, result in enumerate(results, 1):
-        # Get file name (prefer caption, fall back to file_name)
-        file_name = result.get('caption') or result.get('file_name', 'Unknown')
-        
-        # Get file size in readable format
-        file_size = get_size(result.get('file_size', 0))
-        
-        # Create direct link
-        file_id = result.get('file_id', '')
-        direct_link = f"https://t.me/{bot_username}?start=file_{file_id}"
-        
-        # Format the entry
-        entry = (
-            f"🎬 {file_name}\n"
-            f"📦 {file_size}\n"
-            f"🔗 {direct_link}\n"
-        )
-        
-        message_parts.append(entry)
-    
-    return "\n".join(message_parts)
-
-async def send_long_message(update, text, max_length=4096):
-    """Send long messages by splitting them if they exceed Telegram's limit"""
-    if len(text) <= max_length:
-        await update.message.reply_text(text, parse_mode='HTML')
-        return
-    
-    # Split the message into chunks
-    messages = []
-    current_message = ""
-    
-    for line in text.split('\n'):
-        if len(current_message + line + '\n') > max_length:
-            if current_message:
-                messages.append(current_message.strip())
-                current_message = line + '\n'
-            else:
-                # Single line is too long, split it
-                chunks = [line[i:i+max_length] for i in range(0, len(line), max_length)]
-                messages.extend(chunks[:-1])
-                current_message = chunks[-1] + '\n'
-        else:
-            current_message += line + '\n'
-    
-    if current_message.strip():
-        messages.append(current_message.strip())
-    
-    # Send all message chunks
-    for msg in messages:
-        await update.message.reply_text(msg, parse_mode='HTML')
-
-# Add the command handler to your existing command setup
-def add_handlers(application):
-    """Add all command handlers"""
-    # Your existing handlers...
-    application.add_handler(CommandHandler("getmovie", getmovie_command, filters=filters.User(ADMINS)))
-    
-    # Your other handlers...
-
