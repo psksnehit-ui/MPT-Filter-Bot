@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://i.ibb.co/pBmC2QKg/mptjoin.png" alt="MpT-Filter-Bot Logo">
+  <img src="https://envs.sh/yIi.jpg" alt="MpT-Filter-Bot Logo">
 </p> 
 <h1 align="center">
   MPT FILTER BOT
@@ -204,4 +204,5 @@ Selling The Codes To Other People For Money Is *Strictly Prohibited*.</b>
 </pre>
 </p>
 </details>
+
 
