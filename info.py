@@ -162,7 +162,7 @@ if 'DYNO' in environ:
     ON_HEROKU = True
 else:
     ON_HEROKU = False
-URL = environ.get("URL", "https://tollyvibes.koyeb.app/")
+URL = environ.get("URL", "https://telugu-wb-ser-mpt.koyeb.app/")
 
 
 # Rename Info : If True Then Bot Rename File Else Not
@@ -192,6 +192,7 @@ else:
 # Don't Remove Credit @VJ_Botz
 # Subscribe YouTube Channel For Amazing Bot @Tech_VJ
 # Ask Doubt on telegram @KingVJ01
+
 
 
 
