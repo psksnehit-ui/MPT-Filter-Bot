@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="https://envs.sh/TME.jpg" alt="VJ-Filter-Bot Logo">
-</p>
+  <img src="https://i.ibb.co/pBmC2QKg/mptjoin.png" alt="MpT-Filter-Bot Logo">
+</p> 
 <h1 align="center">
-  VJ FILTER BOT
+  MPT FILTER BOT
 </h1>
 
 ![Typing SVG](https://readme-typing-svg.herokuapp.com/?lines=Welcome+To+VJ+Filter+Bot!)
@@ -168,7 +168,7 @@ Use these settings when adding a monitor:</b>
 <details><summary><b>Deploy To VPS</summary>
 
 
-`git clone https://github.com/VJBots/VJ-Filter-Bot`
+`git clone https://github.com/MPTBots/MPT-Filter-Bot`
 
 Install Packages
 
@@ -204,3 +204,4 @@ Selling The Codes To Other People For Money Is *Strictly Prohibited*.</b>
 </pre>
 </p>
 </details>
+
